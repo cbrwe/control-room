@@ -1,0 +1,45 @@
+{
+  "name": "@control-room/protocol",
+  "version": "0.0.1",
+  "description": "Reverse-engineered HID protocol for the Chilkey ND75 keyboard. Pure TypeScript, no dependencies, swappable HID adapter.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./keycodes": {
+      "types": "./dist/keycodes.d.ts",
+      "import": "./dist/keycodes.js"
+    },
+    "./commands": {
+      "types": "./dist/commands.d.ts",
+      "import": "./dist/commands.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "chilkey",
+    "nd75",
+    "keyboard",
+    "hid",
+    "webhid",
+    "mechanical-keyboard"
+  ]
+}

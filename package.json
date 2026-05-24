@@ -1,0 +1,24 @@
+{
+  "name": "control-room",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Control app for the Chilkey ND75 mechanical keyboard. Mac, Windows, Web.",
+  "author": "HVW8 Labs",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
