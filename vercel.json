@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pnpm install --no-frozen-lockfile --recursive",
+  "buildCommand": "pnpm install --no-frozen-lockfile && pnpm -F @control-room/protocol build && pnpm -F @control-room/web build",
+  "outputDirectory": "packages/web/dist",
+  "framework": "vite"
+}
