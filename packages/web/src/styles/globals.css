@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 100 800;
+  font-display: swap;
+  font-style: normal;
+  src: url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono/fonts/variable/JetBrainsMono[wght].ttf')
+    format('truetype-variations');
+}
+
+:root {
+  color-scheme: dark;
+  --accent: 93 214 116;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: #06080b;
+  color: #e8e6e1;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-feature-settings: 'ss01', 'ss02', 'zero', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Subtle grid texture overlay on body */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(93, 214, 116, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93, 214, 116, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 100%);
+  z-index: 0;
+}
+
+/* CRT scanline atmosphere */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 3px,
+    rgba(0, 0, 0, 0.08) 3px
+  );
+  z-index: 1;
+  opacity: 0.4;
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+::selection {
+  background: rgba(93, 214, 116, 0.3);
+  color: #e8e6e1;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3038;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #363c47;
+}
+
+/* Focus rings */
+*:focus-visible {
+  outline: 1px solid #5dd674;
+  outline-offset: 2px;
+}
+
+/* Phosphor glow utility class */
+.glow-phosphor {
+  text-shadow: 0 0 8px rgba(93, 214, 116, 0.5),
+    0 0 16px rgba(93, 214, 116, 0.25);
+}
+
+.glow-phosphor-strong {
+  text-shadow: 0 0 4px rgba(93, 214, 116, 0.9),
+    0 0 12px rgba(93, 214, 116, 0.6), 0 0 24px rgba(93, 214, 116, 0.3);
+}
+
+/* Bracket frame around important containers */
+.bracket-frame {
+  position: relative;
+}
+.bracket-frame::before,
+.bracket-frame::after,
+.bracket-frame > .bracket-tl,
+.bracket-frame > .bracket-tr,
+.bracket-frame > .bracket-bl,
+.bracket-frame > .bracket-br {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: #5dd674;
+  pointer-events: none;
+}
