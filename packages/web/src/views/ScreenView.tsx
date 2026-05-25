@@ -4,7 +4,9 @@ import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
-import { formatBytes } from '../lib/utils';
+import { formatBytes, cn } from '../lib/utils';
+import { WIDGETS, type WidgetRenderer } from '../lib/widgets';
+import { useLcdWidget } from '../hooks/useLcdWidget';
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -21,6 +23,22 @@ export function ScreenView({ device }: ScreenViewProps) {
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' });
   const fileInput = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [widgetId, setWidgetId] = useState<string | null>('clock');
+  const [widgetActive, setWidgetActive] = useState(false);
+  const [customText, setCustomText] = useState('HELLO');
+  const widget: WidgetRenderer | null = widgetId
+    ? WIDGETS.find((w) => w.id === widgetId) ?? null
+    : null;
+  // Stash custom text on window so the text widget can read it without prop drilling.
+  if (typeof window !== 'undefined') {
+    (window as Window & { __crCustomText?: string }).__crCustomText = customText;
+  }
+  const { canvasRef: widgetPreviewRef, state: widgetState, renderAndPush } = useLcdWidget({
+    device,
+    widget,
+    active: widgetActive,
+  });
 
   const handleFile = async (file: File) => {
     setUpload({ status: 'processing' });
@@ -73,7 +91,7 @@ export function ScreenView({ device }: ScreenViewProps) {
       <SectionHeader
         index="04"
         label="SCREEN"
-        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display you can push images to. Live widgets (clock, weather, Now Playing, calendar) are coming in v1.1.`}
+        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display you can push images to or run live widgets on. Toggle WIDGET LIVE to start pushing on a timer.`}
         action={
           <StatusPill
             variant={
@@ -171,56 +189,144 @@ export function ScreenView({ device }: ScreenViewProps) {
             </div>
           </Panel>
 
-          <Panel padding="lg" className="relative overflow-hidden">
-            {/* Diagonal hatch fill to read as non-interactive */}
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none opacity-[0.04]"
-              style={{
-                backgroundImage:
-                  'repeating-linear-gradient(135deg, #5dd674 0 1px, transparent 1px 8px)',
-              }}
-            />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-2xs tracking-widest uppercase text-text-muted">
-                  ROADMAP // V1.1
-                </div>
-                <span className="px-2 py-0.5 border border-text-faint text-2xs tracking-widest uppercase text-text-muted">
-                  NOT BUILT
-                </span>
+          <Panel padding="lg">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-2xs tracking-widest uppercase text-text-muted">
+                LIVE WIDGETS
               </div>
-              <h3 className="text-lg text-text-muted mb-3">Live widget system</h3>
-              <p className="text-sm text-text-faint mb-4 leading-relaxed">
-                Turn the screen into a live data surface that pushes new content
-                on a timer. None of the cards below are wired up yet. Listed
-                here so you can see what's planned.
-              </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  'Real clock',
-                  'Weather',
-                  'Now Playing',
-                  'Calendar next-up',
-                  'CPU/RAM/Net',
-                  'Pomodoro timer',
-                  'GitHub notifs',
-                  'Stocks ticker',
-                  'Custom text',
-                  'Discord status',
-                  'RSS headline',
-                  'Theme pack',
-                ].map((w) => (
-                  <div
-                    key={w}
-                    aria-disabled
-                    className="px-3 py-2 border border-dashed border-ink-400 text-2xs tracking-widest uppercase text-text-faint select-none cursor-not-allowed"
+              <StatusPill
+                variant={
+                  widgetState.status === 'uploading' || widgetState.status === 'rendering'
+                    ? 'warn'
+                    : widgetState.status === 'live'
+                      ? 'live'
+                      : widgetState.status === 'error'
+                        ? 'error'
+                        : 'idle'
+                }
+                label={
+                  widgetState.status === 'idle'
+                    ? 'PREVIEW'
+                    : widgetState.status === 'rendering'
+                      ? 'RENDER'
+                      : widgetState.status === 'uploading'
+                        ? 'UPLOADING'
+                        : widgetState.status === 'live'
+                          ? widgetActive
+                            ? 'LIVE'
+                            : 'PUSHED'
+                          : 'FAULT'
+                }
+                blink={widgetState.status === 'uploading' || widgetState.status === 'rendering'}
+              />
+            </div>
+            <p className="text-sm text-text-secondary mb-4 leading-relaxed">
+              Pick a widget. Hit PUSH ONCE to send a single frame or toggle
+              LIVE to push on the widget's natural cadence (clock = 60s).
+            </p>
+
+            <div className="grid grid-cols-1 gap-2 mb-4">
+              {WIDGETS.map((w) => {
+                const active = w.id === widgetId;
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => setWidgetId(w.id)}
+                    className={cn(
+                      'text-left border px-3 py-2.5 transition-colors',
+                      active
+                        ? 'border-phosphor bg-phosphor/5'
+                        : 'border-ink-400 hover:border-text-muted'
+                    )}
                   >
-                    {w}
-                  </div>
-                ))}
+                    <div className={cn(
+                      'text-2xs tracking-widest uppercase',
+                      active ? 'text-phosphor' : 'text-text-primary'
+                    )}>
+                      {w.name}
+                      {w.intervalSec > 0 && (
+                        <span className="text-text-faint ml-2">
+                          // {w.intervalSec}S CADENCE
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xs text-text-faint mt-0.5">{w.description}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {widgetId === 'text' && (
+              <div className="mb-4">
+                <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
+                  CUSTOM MESSAGE (12 CHAR MAX)
+                </div>
+                <input
+                  type="text"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value.slice(0, 12))}
+                  className="w-full h-10 bg-ink-900 border border-ink-400 px-3 text-text-primary font-mono text-sm outline-none focus:border-phosphor"
+                  maxLength={12}
+                />
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={renderAndPush}
+                disabled={!widget || widgetState.status === 'uploading'}
+              >
+                PUSH ONCE
+              </Button>
+              <button
+                onClick={() => setWidgetActive((a) => !a)}
+                disabled={!widget || (widget && widget.intervalSec === 0)}
+                className={cn(
+                  'h-10 px-5 border text-xs tracking-widest uppercase font-mono transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                  widgetActive
+                    ? 'border-phosphor bg-phosphor text-ink-950 hover:bg-phosphor-bright'
+                    : 'border-phosphor/40 text-phosphor hover:border-phosphor hover:bg-phosphor/5'
+                )}
+              >
+                {widgetActive ? '◉ LIVE' : '○ GO LIVE'}
+              </button>
+              {widget && widget.intervalSec === 0 && (
+                <span className="text-2xs tracking-widest uppercase text-text-faint">
+                  STATIC // NO LIVE LOOP
+                </span>
+              )}
+            </div>
+
+            {widgetState.status === 'live' && widgetState.nextPushAt && widgetActive && (
+              <p className="text-2xs tracking-widest uppercase text-text-faint mt-3">
+                NEXT PUSH IN {Math.max(0, Math.round((widgetState.nextPushAt - Date.now()) / 1000))}S
+              </p>
+            )}
+            {widgetState.status === 'error' && (
+              <p className="text-2xs tracking-widest uppercase text-danger mt-3">
+                {widgetState.message.toUpperCase()}
+              </p>
+            )}
+
+            {/* Hidden preview canvas mirrors what's being pushed */}
+            <div className="mt-5 flex justify-center">
+              <div
+                className="bg-black border border-ink-400 overflow-hidden"
+                style={{ width: 135, height: 240 }}
+              >
+                <canvas
+                  ref={widgetPreviewRef}
+                  width={SCREEN.width}
+                  height={SCREEN.height}
+                  className="w-full h-full"
+                  style={{ imageRendering: 'pixelated' }}
+                />
               </div>
             </div>
+            <p className="text-2xs tracking-widest uppercase text-text-faint text-center mt-2">
+              WIDGET PREVIEW // {SCREEN.width}×{SCREEN.height}
+            </p>
           </Panel>
         </div>
       </div>
