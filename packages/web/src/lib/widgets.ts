@@ -60,13 +60,13 @@ const CLOCK: WidgetRenderer = {
 
     // Date block at the bottom in pure white
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText(`${day} ${month}`, w / 2, h - 36);
+    ctx.font = 'bold 26px monospace';
+    ctx.fillText(`${day} ${month}`, w / 2, h - 42);
 
-    // Weekday tag, smaller, slightly dim
+    // Weekday tag, slightly dim
     ctx.fillStyle = DIM;
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(weekday, w / 2, h - 16);
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText(weekday, w / 2, h - 18);
   },
 };
 
