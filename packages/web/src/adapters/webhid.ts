@@ -21,27 +21,17 @@ export class WebHIDAdapter implements HIDAdapter {
       await this.device.open();
     }
     if (!this.listenerBound) {
+      // Use ONLY the property-handler style (matches the bundle's
+      // `device.oninputreport = ...` pattern). Binding both
+      // addEventListener AND oninputreport causes each input report to
+      // dispatch twice, which makes the TFT chunk pump send 2 chunks per
+      // ack, drift out of order, and stall mid-upload around 80-90%.
       const dispatch = (event: HIDInputReportEvent) => {
         const view = event.data;
         const out = new Uint8Array(view.byteLength);
         for (let i = 0; i < view.byteLength; i++) out[i] = view.getUint8(i);
-        // Debug log to confirm input reports arrive at all.
-        if (!this.inputHandler) {
-          console.log(
-            `[CR] inputreport on ${this.label ?? 'device'} reportId=${event.reportId} bytes=${out.length} (no handler)`
-          );
-        } else {
-          console.log(
-            `[CR] inputreport on ${this.label ?? 'device'} reportId=${event.reportId} bytes=${out.length} -> handler`
-          );
-        }
         this.inputHandler?.(out);
       };
-      // Bind BOTH the addEventListener style and the property-handler style.
-      // Some Chrome versions on macOS only fire one or the other for HID
-      // collections with vendor usage pages. The bundle uses oninputreport
-      // direct assignment; we add the event listener as a belt-and-suspenders.
-      this.device.addEventListener('inputreport', dispatch as EventListener);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.device as unknown as { oninputreport: typeof dispatch }).oninputreport = dispatch;
       this.listenerBound = true;
