@@ -12,25 +12,37 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', loading, icon, className, children, disabled, ...rest }, ref) => {
+  (
+    {
+      variant = 'primary',
+      size = 'md',
+      loading,
+      icon,
+      className,
+      children,
+      disabled,
+      ...rest
+    },
+    ref
+  ) => {
     const baseClasses =
-      'group relative inline-flex items-center justify-center gap-2 font-mono uppercase tracking-widest border transition-[background,border-color,color] duration-150 disabled:opacity-50 disabled:cursor-not-allowed';
+      'group relative inline-flex items-center justify-center gap-2 font-medium rounded-md border transition-[background,border-color,color,box-shadow] duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:shadow-ring';
 
     const sizeClass = {
-      sm: 'h-8 px-3 text-2xs',
-      md: 'h-10 px-5 text-xs',
-      lg: 'h-12 px-6 text-sm',
+      sm: 'h-8 px-3 text-xs',
+      md: 'h-10 px-4 text-sm',
+      lg: 'h-12 px-6 text-base',
     }[size];
 
     const variantClass = {
       primary:
-        'bg-phosphor text-ink-950 border-phosphor hover:bg-phosphor-bright hover:border-phosphor-bright active:bg-phosphor-dim',
+        'bg-phosphor text-white border-phosphor hover:bg-phosphor-dim hover:border-phosphor-dim active:bg-phosphor-dim',
       secondary:
-        'bg-transparent text-phosphor border-phosphor/40 hover:border-phosphor hover:bg-phosphor/5',
+        'bg-white text-text-primary border-ink-500 hover:bg-ink-800 hover:border-ink-300',
       ghost:
-        'bg-transparent text-text-secondary border-transparent hover:text-text-primary hover:bg-ink-700',
+        'bg-transparent text-text-secondary border-transparent hover:text-text-primary hover:bg-ink-800',
       danger:
-        'bg-transparent text-danger border-danger/40 hover:border-danger hover:bg-danger/5',
+        'bg-white text-danger border-danger/30 hover:bg-danger/5 hover:border-danger',
     }[variant];
 
     return (
@@ -42,7 +54,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading && (
           <span className="absolute inset-0 flex items-center justify-center">
-            <span className="block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            <span className="block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
           </span>
         )}
         <span className={cn('flex items-center gap-2', loading && 'opacity-0')}>

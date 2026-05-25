@@ -4,76 +4,86 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Control Room palette: deep cool blacks, phosphor-green accent, restrained
+        // Light-first product palette. `ink` is the neutral scale used for
+        // page bg, surfaces, borders. `text-*` is for foreground.
+        // `phosphor` is the green accent kept for live/online states.
         ink: {
-          950: '#06080b',
-          900: '#0a0d12',
-          800: '#10141a',
-          700: '#161b22',
-          600: '#1c2230',
-          500: '#252b38',
-          400: '#2a3038',
-          300: '#363c47',
+          950: '#f7f8fa', // page bg (off-white, leaning grey)
+          900: '#ffffff', // card surface
+          800: '#f3f4f6', // subtle hover / inset bg
+          700: '#eceef1', // subtle bg 2
+          600: '#e5e7eb',
+          500: '#d1d5db',
+          400: '#e5e7eb', // dominant border in code, kept subtle
+          300: '#cbd5e1',
         },
         phosphor: {
-          DEFAULT: '#5dd674',
-          dim: '#3da856',
-          bright: '#7fe695',
-          glow: 'rgba(93, 214, 116, 0.18)',
+          DEFAULT: '#16a34a',
+          dim: '#15803d',
+          bright: '#22c55e',
+          glow: 'rgba(22, 163, 74, 0.10)',
+          soft: 'rgba(22, 163, 74, 0.08)',
         },
         amber: {
-          DEFAULT: '#e8a849',
-          dim: '#b07d2e',
+          DEFAULT: '#d97706',
+          dim: '#b45309',
         },
         danger: {
-          DEFAULT: '#ef5350',
-          dim: '#a8312e',
+          DEFAULT: '#dc2626',
+          dim: '#b91c1c',
         },
         text: {
-          primary: '#e8e6e1',
-          secondary: '#9aa1ac',
-          muted: '#5b626d',
-          faint: '#3a4049',
+          primary: '#0f172a',
+          secondary: '#475569',
+          muted: '#64748b',
+          faint: '#94a3b8',
         },
       },
       fontFamily: {
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'sans-serif',
+        ],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'Menlo', 'monospace'],
-        sans: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       fontSize: {
-        '2xs': ['0.625rem', { lineHeight: '0.875rem', letterSpacing: '0.08em' }],
+        '2xs': ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.06em' }],
       },
       letterSpacing: {
-        widest: '0.18em',
+        widest: '0.14em',
+      },
+      borderRadius: {
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '14px',
+        xl: '18px',
+        '2xl': '24px',
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.05)',
+        elevated:
+          '0 4px 12px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04)',
+        ring: '0 0 0 4px rgba(22,163,74,0.12)',
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        blink: 'blink 1.1s steps(2, start) infinite',
-        scan: 'scan 4s linear infinite',
-        boot: 'boot 0.6s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'pulse-soft': 'pulseSoft 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        boot: 'boot 0.5s cubic-bezier(0.16, 1, 0.3, 1) both',
       },
       keyframes: {
-        blink: {
+        pulseSoft: {
           '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0' },
-        },
-        scan: {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(100vh)' },
+          '50%': { opacity: '0.45' },
         },
         boot: {
-          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-      },
-      backgroundImage: {
-        grid: `linear-gradient(rgba(93,214,116,0.025) 1px, transparent 1px),
-               linear-gradient(90deg, rgba(93,214,116,0.025) 1px, transparent 1px)`,
-        'grid-bright': `linear-gradient(rgba(93,214,116,0.06) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(93,214,116,0.06) 1px, transparent 1px)`,
-      },
-      backgroundSize: {
-        grid: '32px 32px',
       },
     },
   },

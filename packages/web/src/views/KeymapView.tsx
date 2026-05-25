@@ -111,7 +111,7 @@ export function KeymapView({ device: _device }: KeymapViewProps) {
         }
       />
 
-      <Panel padding="lg" brackets>
+      <Panel padding="lg">
         <div className="mb-4 flex items-center justify-between text-2xs tracking-widest uppercase">
           <span className="text-text-muted">
             LAYER <span className="text-phosphor">{layer === 0 ? 'BASE' : 'FN'}</span>
@@ -131,14 +131,14 @@ export function KeymapView({ device: _device }: KeymapViewProps) {
       {/* Key picker drawer */}
       {selected && (
         <div
-          className="fixed inset-0 z-40 bg-ink-950/80 backdrop-blur-sm flex items-end justify-center"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-end justify-center"
           onClick={() => setSelected(null)}
         >
           <div
-            className="w-full max-w-5xl bg-ink-800 border-t border-ink-400 max-h-[80vh] overflow-auto"
+            className="w-full max-w-5xl bg-white rounded-t-xl border-t border-ink-500 max-h-[80vh] overflow-auto shadow-elevated"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-ink-800/95 backdrop-blur-md border-b border-ink-400 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-ink-600 px-6 py-4 flex items-center justify-between">
               <div>
                 <div className="text-2xs tracking-widest uppercase text-text-muted">
                   REMAP // SLOT {selected.slot.toString().padStart(3, '0')}

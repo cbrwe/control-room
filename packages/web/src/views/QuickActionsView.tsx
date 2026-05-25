@@ -193,10 +193,10 @@ export function QuickActionsView({ device }: QuickActionsViewProps) {
                   value={value}
                   onChange={(e) => setAction(action.id, e.target.value)}
                   className={cn(
-                    'h-8 bg-ink-900 border text-2xs tracking-widest uppercase px-2 font-mono outline-none cursor-pointer',
+                    'h-9 bg-white border rounded-md text-xs px-2.5 font-mono outline-none cursor-pointer',
                     value
-                      ? 'border-phosphor text-phosphor'
-                      : 'border-ink-400 text-text-muted hover:border-text-muted'
+                      ? 'border-phosphor text-phosphor-dim font-medium'
+                      : 'border-ink-500 text-text-muted hover:border-ink-300'
                   )}
                 >
                   <option value="">— UNBOUND —</option>

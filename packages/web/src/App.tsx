@@ -13,18 +13,28 @@ import { handleAuthCallback as handleGithubCallback } from './lib/widgets/github
 export function App() {
   const { status, device, connect, disconnect } = useDevice();
   const [tab, setTab] = useState<Tab>('lighting');
+  const [, setAuthTick] = useState(0);
 
-  // Handle OAuth redirects when the user lands back on the app. Both
-  // providers redirect to the same URL with ?code= + ?state=. Each handler
-  // checks state and bails if it's not theirs. Runs once on mount; the
-  // handlers clear ?code from the URL when they consume it.
   useEffect(() => {
-    handleSpotifyCallback().catch((err) => {
-      console.error('Spotify auth callback failed:', err);
-    });
-    handleGithubCallback().catch((err) => {
-      console.error('GitHub auth callback failed:', err);
-    });
+    let mounted = true;
+    const bump = () => mounted && setAuthTick((n) => n + 1);
+    handleSpotifyCallback()
+      .then((ok) => {
+        if (ok) bump();
+      })
+      .catch((err) => {
+        console.error('Spotify auth callback failed:', err);
+      });
+    handleGithubCallback()
+      .then((ok) => {
+        if (ok) bump();
+      })
+      .catch((err) => {
+        console.error('GitHub auth callback failed:', err);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (status.state !== 'connected' || !device) {
@@ -32,7 +42,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-ink-950">
       <AppHeader
         status={status}
         activeTab={tab}
@@ -46,9 +56,9 @@ export function App() {
         {tab === 'screen' && <ScreenView device={device} />}
         {tab === 'settings' && <SettingsView device={device} />}
       </main>
-      <footer className="border-t border-ink-400 px-6 py-4 text-2xs tracking-widest uppercase text-text-muted flex items-center justify-between">
-        <span>CONTROL ROOM // BUILT BY HVW8 LABS</span>
-        <span className="text-text-faint">MIT LICENSED</span>
+      <footer className="border-t border-ink-600 bg-white px-6 py-4 flex items-center justify-between text-xs text-text-muted">
+        <span>Control Room · HVW8 Labs</span>
+        <span className="text-text-faint font-mono">MIT</span>
       </footer>
     </div>
   );

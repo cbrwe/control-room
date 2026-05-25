@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { type ND75Device, SCREEN, FRAME_BYTES, rgbaToRgb565 } from '@control-room/protocol';
 import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
@@ -8,6 +8,17 @@ import { formatBytes, cn } from '../lib/utils';
 import { WIDGETS, type Widget } from '../lib/widgets';
 import { useLcdWidget } from '../hooks/useLcdWidget';
 import { WidgetSettings } from '../components/WidgetSettings';
+import {
+  isConnected as spotifyConnected,
+  startAuth as startSpotifyAuth,
+  clearTokens as clearSpotifyTokens,
+} from '../lib/widgets/spotify-oauth';
+import {
+  isConnected as githubConnected,
+  startAuth as startGithubAuth,
+  clearTokens as clearGithubTokens,
+} from '../lib/widgets/github-oauth';
+import { spotifyConfigured, githubConfigured } from '../lib/app-config';
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -19,6 +30,11 @@ interface UploadState {
   progress?: number;
 }
 
+const WIDGETS_NEEDING_AUTH: Record<string, 'spotify' | 'github'> = {
+  'now-playing': 'spotify',
+  github: 'github',
+};
+
 export function ScreenView({ device }: ScreenViewProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' });
@@ -28,18 +44,60 @@ export function ScreenView({ device }: ScreenViewProps) {
   const [widgetId, setWidgetId] = useState<string | null>('clock');
   const [widgetActive, setWidgetActive] = useState(false);
   const [customText, setCustomText] = useState('HELLO');
+  const [authTick, setAuthTick] = useState(0);
+
   const widget: Widget | null = widgetId
     ? WIDGETS.find((w) => w.id === widgetId) ?? null
     : null;
-  // Stash custom text on window so the text widget can read it without prop drilling.
+
   if (typeof window !== 'undefined') {
     (window as Window & { __crCustomText?: string }).__crCustomText = customText;
   }
+
   const { canvasRef: widgetPreviewRef, state: widgetState, renderAndPush } = useLcdWidget({
     device,
     widget,
     active: widgetActive,
   });
+
+  useEffect(() => {
+    const onFocus = () => setAuthTick((n) => n + 1);
+    const onStorage = () => setAuthTick((n) => n + 1);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
+  const spotifyOk = spotifyConnected();
+  const githubOk = githubConnected();
+  const spotifyReady = spotifyConfigured();
+  const githubReady = githubConfigured();
+
+  const handleWidgetSelect = async (id: string) => {
+    const authNeeded = WIDGETS_NEEDING_AUTH[id];
+    if (authNeeded === 'spotify' && !spotifyOk && spotifyReady) {
+      try {
+        await startSpotifyAuth();
+        return;
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Spotify connect failed');
+        return;
+      }
+    }
+    if (authNeeded === 'github' && !githubOk && githubReady) {
+      try {
+        await startGithubAuth();
+        return;
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'GitHub connect failed');
+        return;
+      }
+    }
+    setWidgetId(id);
+  };
 
   const handleFile = async (file: File) => {
     setUpload({ status: 'processing' });
@@ -57,7 +115,6 @@ export function ScreenView({ device }: ScreenViewProps) {
       canvas.width = SCREEN.width;
       canvas.height = SCREEN.height;
       const ctx = canvas.getContext('2d')!;
-      // Cover fit
       const scale = Math.max(SCREEN.width / img.width, SCREEN.height / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
@@ -77,22 +134,22 @@ export function ScreenView({ device }: ScreenViewProps) {
 
       setUpload({
         status: 'ok',
-        message: `UPLOADED ${formatBytes(rgb565.length)} IN ${elapsed}MS`,
+        message: `Uploaded ${formatBytes(rgb565.length)} in ${elapsed}ms`,
       });
     } catch (err) {
       setUpload({
         status: 'error',
-        message: err instanceof Error ? err.message : 'unknown error',
+        message: err instanceof Error ? err.message : 'Unknown error',
       });
     }
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
+    <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto" data-auth-tick={authTick}>
       <SectionHeader
         index="04"
         label="SCREEN"
-        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display you can push images to or run live widgets on. Toggle WIDGET LIVE to start pushing on a timer.`}
+        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display. Pick a widget to push, or upload a still image. Connect Spotify and GitHub right where you select them.`}
         action={
           <StatusPill
             variant={
@@ -106,94 +163,53 @@ export function ScreenView({ device }: ScreenViewProps) {
             }
             label={
               upload.status === 'idle'
-                ? 'READY'
+                ? 'Ready'
                 : upload.status === 'processing'
-                  ? 'PROCESSING'
+                  ? 'Processing'
                   : upload.status === 'uploading'
-                    ? 'UPLOADING'
+                    ? 'Uploading'
                     : upload.status === 'ok'
                       ? 'OK'
-                      : 'FAULT'
+                      : 'Fault'
             }
             blink={upload.status === 'uploading' || upload.status === 'processing'}
           />
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[420px,1fr] gap-6">
-        {/* Phone-shaped TFT preview */}
-        <Panel padding="lg">
-          <div className="text-2xs tracking-widest uppercase text-text-muted mb-3">
-            PREVIEW // {SCREEN.width}×{SCREEN.height}
-          </div>
-          <div
-            className="mx-auto bg-black border border-ink-400 overflow-hidden"
-            style={{
-              width: 270,
-              height: 480,
-            }}
-          >
-            <canvas
-              ref={canvasRef}
-              width={SCREEN.width}
-              height={SCREEN.height}
-              className="w-full h-full"
-              style={{ imageRendering: 'pixelated' }}
-            />
-            {!preview && (
-              <div className="-mt-[480px] w-full h-[480px] flex items-center justify-center text-2xs tracking-widest uppercase text-text-muted">
-                NO IMAGE
-              </div>
-            )}
-          </div>
-          <div className="mt-4 text-2xs tracking-widest uppercase text-text-faint text-center">
-            {FRAME_BYTES.toLocaleString()} BYTES / FRAME @ RGB565
-          </div>
-        </Panel>
-
-        {/* Controls */}
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[360px,1fr] gap-6">
+        <div className="space-y-6">
           <Panel padding="lg">
-            <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
-              UPLOAD AN IMAGE
+            <div className="text-xs font-medium text-text-muted mb-3">
+              Preview · {SCREEN.width}×{SCREEN.height}
             </div>
-            <p className="text-sm text-text-secondary mb-4">
-              Drop an image or browse to one. We'll cover-fit it to the screen and
-              convert to RGB565 automatically. GIF support is coming with the live
-              widget system.
-            </p>
-            <input
-              type="file"
-              ref={fileInput}
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFile(file);
-              }}
-              className="hidden"
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={() => fileInput.current?.click()}>
-                CHOOSE FILE
-              </Button>
-              {upload.message && (
-                <span
-                  className={
-                    upload.status === 'ok'
-                      ? 'text-2xs tracking-widest uppercase text-phosphor'
-                      : 'text-2xs tracking-widest uppercase text-danger'
-                  }
-                >
-                  {upload.message}
-                </span>
+            <div
+              className="mx-auto bg-black rounded-md overflow-hidden ring-1 ring-ink-500"
+              style={{ width: 240, height: 426 }}
+            >
+              <canvas
+                ref={canvasRef}
+                width={SCREEN.width}
+                height={SCREEN.height}
+                className="w-full h-full"
+                style={{ imageRendering: 'pixelated' }}
+              />
+              {!preview && (
+                <div className="-mt-[426px] w-full h-[426px] flex items-center justify-center text-xs text-white/40 font-mono">
+                  No image
+                </div>
               )}
+            </div>
+            <div className="mt-4 text-xs text-text-faint text-center font-mono">
+              {FRAME_BYTES.toLocaleString()} bytes / frame · RGB565
             </div>
           </Panel>
 
           <Panel padding="lg">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-2xs tracking-widest uppercase text-text-muted">
-                LIVE WIDGETS
+              <div>
+                <div className="text-xs font-medium text-text-muted">Widget preview</div>
+                <div className="text-xs text-text-faint mt-0.5">Mirrors what's being pushed</div>
               </div>
               <StatusPill
                 variant={
@@ -207,113 +223,23 @@ export function ScreenView({ device }: ScreenViewProps) {
                 }
                 label={
                   widgetState.status === 'idle'
-                    ? 'PREVIEW'
+                    ? 'Preview'
                     : widgetState.status === 'rendering'
-                      ? 'RENDER'
+                      ? 'Render'
                       : widgetState.status === 'uploading'
-                        ? 'UPLOADING'
+                        ? 'Uploading'
                         : widgetState.status === 'live'
                           ? widgetActive
-                            ? 'LIVE'
-                            : 'PUSHED'
-                          : 'FAULT'
+                            ? 'Live'
+                            : 'Pushed'
+                          : 'Fault'
                 }
                 blink={widgetState.status === 'uploading' || widgetState.status === 'rendering'}
               />
             </div>
-            <p className="text-sm text-text-secondary mb-4 leading-relaxed">
-              Pick a widget. Hit PUSH ONCE to send a single frame or toggle
-              LIVE to push on the widget's natural cadence (clock = 60s).
-            </p>
-
-            <div className="grid grid-cols-1 gap-2 mb-4">
-              {WIDGETS.map((w) => {
-                const active = w.id === widgetId;
-                return (
-                  <button
-                    key={w.id}
-                    onClick={() => setWidgetId(w.id)}
-                    className={cn(
-                      'text-left border px-3 py-2.5 transition-colors',
-                      active
-                        ? 'border-phosphor bg-phosphor/5'
-                        : 'border-ink-400 hover:border-text-muted'
-                    )}
-                  >
-                    <div className={cn(
-                      'text-2xs tracking-widest uppercase',
-                      active ? 'text-phosphor' : 'text-text-primary'
-                    )}>
-                      {w.name}
-                      {w.intervalSec > 0 && (
-                        <span className="text-text-faint ml-2">
-                          // {w.intervalSec}S CADENCE
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-2xs text-text-faint mt-0.5">{w.description}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {widgetId === 'text' && (
-              <div className="mb-4">
-                <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
-                  CUSTOM MESSAGE (12 CHAR MAX)
-                </div>
-                <input
-                  type="text"
-                  value={customText}
-                  onChange={(e) => setCustomText(e.target.value.slice(0, 12))}
-                  className="w-full h-10 bg-ink-900 border border-ink-400 px-3 text-text-primary font-mono text-sm outline-none focus:border-phosphor"
-                  maxLength={12}
-                />
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="secondary"
-                onClick={renderAndPush}
-                disabled={!widget || widgetState.status === 'uploading'}
-              >
-                PUSH ONCE
-              </Button>
-              <button
-                onClick={() => setWidgetActive((a) => !a)}
-                disabled={!widget || (widget && widget.intervalSec === 0)}
-                className={cn(
-                  'h-10 px-5 border text-xs tracking-widest uppercase font-mono transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  widgetActive
-                    ? 'border-phosphor bg-phosphor text-ink-950 hover:bg-phosphor-bright'
-                    : 'border-phosphor/40 text-phosphor hover:border-phosphor hover:bg-phosphor/5'
-                )}
-              >
-                {widgetActive ? '◉ LIVE' : '○ GO LIVE'}
-              </button>
-              {widget && widget.intervalSec === 0 && (
-                <span className="text-2xs tracking-widest uppercase text-text-faint">
-                  STATIC // NO LIVE LOOP
-                </span>
-              )}
-            </div>
-
-            {widgetState.status === 'live' && widgetState.nextPushAt && widgetActive && (
-              <p className="text-2xs tracking-widest uppercase text-text-faint mt-3">
-                NEXT PUSH IN {Math.max(0, Math.round((widgetState.nextPushAt - Date.now()) / 1000))}S
-              </p>
-            )}
-            {widgetState.status === 'error' && (
-              <p className="text-2xs tracking-widest uppercase text-danger mt-3">
-                {widgetState.message.toUpperCase()}
-              </p>
-            )}
-
-            {/* Hidden preview canvas mirrors what's being pushed */}
-            <div className="mt-5 flex justify-center">
+            <div className="flex justify-center">
               <div
-                className="bg-black border border-ink-400 overflow-hidden"
+                className="bg-black rounded-md overflow-hidden ring-1 ring-ink-500"
                 style={{ width: 135, height: 240 }}
               >
                 <canvas
@@ -325,14 +251,253 @@ export function ScreenView({ device }: ScreenViewProps) {
                 />
               </div>
             </div>
-            <p className="text-2xs tracking-widest uppercase text-text-faint text-center mt-2">
-              WIDGET PREVIEW // {SCREEN.width}×{SCREEN.height}
+          </Panel>
+        </div>
+
+        <div className="space-y-6">
+          <Panel padding="lg">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="text-base font-semibold text-text-primary">Live widgets</h3>
+                <p className="text-sm text-text-secondary mt-0.5">
+                  Pick a widget. Push once, or go live to refresh on a cadence.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {WIDGETS.map((w) => {
+                const active = w.id === widgetId;
+                const needs = WIDGETS_NEEDING_AUTH[w.id];
+                const isConnected =
+                  needs === 'spotify' ? spotifyOk : needs === 'github' ? githubOk : true;
+                const isConfigured =
+                  needs === 'spotify' ? spotifyReady : needs === 'github' ? githubReady : true;
+                const rowProps: WidgetRowProps = {
+                  widget: w,
+                  active,
+                  connected: isConnected,
+                  configured: isConfigured,
+                  onSelect: () => handleWidgetSelect(w.id),
+                  onConnect: async () => {
+                    if (needs === 'spotify') await startSpotifyAuth();
+                    if (needs === 'github') await startGithubAuth();
+                  },
+                  onDisconnect: () => {
+                    if (needs === 'spotify') clearSpotifyTokens();
+                    if (needs === 'github') clearGithubTokens();
+                    setAuthTick((n) => n + 1);
+                  },
+                };
+                if (needs) rowProps.needsAuth = needs;
+                return <WidgetRow key={w.id} {...rowProps} />;
+              })}
+            </div>
+
+            {widgetId === 'text' && (
+              <div className="mt-5">
+                <label className="text-xs font-medium text-text-muted">
+                  Custom message
+                  <span className="text-text-faint font-normal ml-2">(12 char max)</span>
+                </label>
+                <input
+                  type="text"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value.slice(0, 12))}
+                  className="mt-1.5 w-full h-10 bg-white border border-ink-500 rounded-md px-3 text-sm text-text-primary outline-none focus:border-phosphor focus:shadow-ring"
+                  maxLength={12}
+                />
+              </div>
+            )}
+
+            <div className="mt-6 pt-5 border-t border-ink-600 flex flex-wrap items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={renderAndPush}
+                disabled={!widget || widgetState.status === 'uploading'}
+              >
+                Push once
+              </Button>
+              <Button
+                variant={widgetActive ? 'primary' : 'secondary'}
+                onClick={() => setWidgetActive((a) => !a)}
+                disabled={!widget || (widget && widget.intervalSec === 0)}
+              >
+                {widgetActive ? '● Live' : '○ Go live'}
+              </Button>
+              {widget && widget.intervalSec === 0 && (
+                <span className="text-xs text-text-faint">Static · no live loop</span>
+              )}
+              {widgetState.status === 'live' && widgetState.nextPushAt && widgetActive && (
+                <span className="text-xs text-text-muted font-mono ml-auto">
+                  next in {Math.max(0, Math.round((widgetState.nextPushAt - Date.now()) / 1000))}s
+                </span>
+              )}
+            </div>
+
+            {widgetState.status === 'error' && (
+              <p className="text-xs text-danger mt-3 font-medium">
+                {widgetState.message}
+              </p>
+            )}
+          </Panel>
+
+          <Panel padding="lg">
+            <h3 className="text-base font-semibold text-text-primary">Upload an image</h3>
+            <p className="text-sm text-text-secondary mt-0.5">
+              Cover-fitted to {SCREEN.width}×{SCREEN.height} and converted to RGB565.
             </p>
+            <input
+              type="file"
+              ref={fileInput}
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+              className="hidden"
+            />
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button variant="secondary" onClick={() => fileInput.current?.click()}>
+                Choose file
+              </Button>
+              {upload.message && (
+                <span
+                  className={cn(
+                    'text-xs font-medium',
+                    upload.status === 'ok' ? 'text-phosphor-dim' : 'text-danger'
+                  )}
+                >
+                  {upload.message}
+                </span>
+              )}
+            </div>
           </Panel>
 
           <WidgetSettings />
         </div>
       </div>
+    </div>
+  );
+}
+
+interface WidgetRowProps {
+  widget: Widget;
+  active: boolean;
+  needsAuth?: 'spotify' | 'github';
+  connected: boolean;
+  configured: boolean;
+  onSelect: () => void;
+  onConnect: () => Promise<void>;
+  onDisconnect: () => void;
+}
+
+function WidgetRow({
+  widget,
+  active,
+  needsAuth,
+  connected,
+  configured,
+  onSelect,
+  onConnect,
+  onDisconnect,
+}: WidgetRowProps) {
+  const providerLabel =
+    needsAuth === 'spotify' ? 'Spotify' : needsAuth === 'github' ? 'GitHub' : null;
+
+  return (
+    <div
+      className={cn(
+        'rounded-md border transition-all',
+        active
+          ? 'border-phosphor bg-phosphor/5 shadow-card'
+          : 'border-ink-500 bg-white hover:border-ink-300 hover:bg-ink-800'
+      )}
+    >
+      <button
+        onClick={onSelect}
+        className="w-full text-left px-4 py-3.5 flex items-center gap-3"
+      >
+        <div
+          className={cn(
+            'h-5 w-5 rounded-full border-2 shrink-0 transition-colors',
+            active ? 'border-phosphor bg-phosphor' : 'border-ink-500 bg-white'
+          )}
+        >
+          {active && (
+            <svg viewBox="0 0 20 20" className="text-white">
+              <path
+                d="M6 10l3 3 5-5"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-text-primary">{widget.name}</span>
+            {widget.intervalSec > 0 && (
+              <span className="text-xs text-text-faint font-mono">
+                · {widget.intervalSec}s
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-text-muted mt-0.5">{widget.description}</div>
+        </div>
+        {needsAuth && (
+          <span
+            className={cn(
+              'text-xs font-medium px-2 py-0.5 rounded-full shrink-0',
+              connected
+                ? 'text-phosphor-dim bg-phosphor/10'
+                : 'text-text-muted bg-ink-800'
+            )}
+          >
+            {connected ? 'Connected' : 'Not connected'}
+          </span>
+        )}
+      </button>
+
+      {needsAuth && (
+        <div className="px-4 pb-3 pt-1 flex flex-wrap items-center gap-2 border-t border-ink-600">
+          {!configured ? (
+            <span className="text-xs text-amber font-medium">
+              Awaiting admin config · {needsAuth === 'spotify' ? 'VITE_SPOTIFY_CLIENT_ID' : 'VITE_GITHUB_CLIENT_ID'} missing
+            </span>
+          ) : connected ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={onDisconnect}>
+                Disconnect {providerLabel}
+              </Button>
+              <span className="text-xs text-text-faint">
+                Tokens stay in your browser.
+              </span>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConnect().catch((err) => {
+                    alert(err instanceof Error ? err.message : 'Connect failed');
+                  });
+                }}
+              >
+                Connect {providerLabel}
+              </Button>
+              <span className="text-xs text-text-faint">
+                One click. You'll authorize on {providerLabel?.toLowerCase()}.com, then bounce back.
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
