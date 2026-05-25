@@ -3,6 +3,7 @@ import { Button } from '../components/Button';
 import { StatusPill } from '../components/StatusPill';
 import type { ConnectionStatus } from '../hooks/useDevice';
 import { isWebHIDSupported } from '../adapters/webhid';
+import { cn } from '../lib/utils';
 
 interface ConnectViewProps {
   status: ConnectionStatus;
@@ -48,7 +49,7 @@ export function ConnectView({ status, onConnect }: ConnectViewProps) {
         </div>
 
         {/* Hero */}
-        <div className="mb-16 animate-boot">
+        <div className="mb-12 animate-boot">
           <div className="text-2xs tracking-widest uppercase text-text-muted mb-3">
             <span className="text-phosphor">CR</span>
             <span className="text-text-faint mx-3">//</span>
@@ -67,34 +68,43 @@ export function ConnectView({ status, onConnect }: ConnectViewProps) {
           </p>
         </div>
 
-        {/* Connect card */}
+        {/* Connect card with 3-step checklist */}
         <Panel brackets padding="lg" className="animate-boot" style={{ animationDelay: '120ms' }}>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto] gap-8 items-center">
-            <div>
-              <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
-                STEP 01 // CONNECT
-              </div>
-              <p className="text-text-primary text-lg leading-snug">
-                Plug your ND75 into USB-C and authorize the browser to talk to it.
-              </p>
-              <p className="text-text-secondary text-sm mt-3 leading-relaxed">
-                Bluetooth and 2.4G dongle don't expose the configuration channel.
-                Switch the keyboard to USB mode via the on-board LCD before connecting.
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={onConnect}
-              loading={connecting}
-              disabled={!supported}
-            >
-              {connecting ? 'CONNECTING' : 'CONNECT'}
-            </Button>
+          <div className="text-2xs tracking-widest uppercase text-text-muted mb-6">
+            CONNECTION SEQUENCE
           </div>
 
+          <ol className="space-y-4">
+            <Step
+              index="01"
+              title="PLUG IN USB-C"
+              body="Wired only. Bluetooth and the 2.4G dongle don't expose the config channel."
+            />
+            <Step
+              index="02"
+              title="PRESS FN + T"
+              body="Toggles the keyboard into USB mode. The LCD will switch to show USB as the active connection."
+            />
+            <Step
+              index="03"
+              title="CLICK CONNECT"
+              body="Authorizes this browser to talk to the keyboard. Pick the Chilkey ND75 entry in the device picker."
+              action={
+                <Button
+                  variant="primary"
+                  size="lg"
+                  onClick={onConnect}
+                  loading={connecting}
+                  disabled={!supported}
+                >
+                  {connecting ? 'CONNECTING' : 'CONNECT'}
+                </Button>
+              }
+            />
+          </ol>
+
           {errored && (
-            <div className="mt-6 pt-6 border-t border-ink-400">
+            <div className="mt-8 pt-6 border-t border-ink-400">
               <div className="text-2xs tracking-widest uppercase text-danger mb-2">
                 FAULT
               </div>
@@ -105,16 +115,44 @@ export function ConnectView({ status, onConnect }: ConnectViewProps) {
           )}
 
           {!supported && (
-            <div className="mt-6 pt-6 border-t border-ink-400">
+            <div className="mt-8 pt-6 border-t border-ink-400">
               <div className="text-2xs tracking-widest uppercase text-amber mb-2">
                 BROWSER NOT SUPPORTED
               </div>
               <p className="text-sm text-text-secondary leading-relaxed">
-                WebHID is not available in this browser. Use Chrome, Edge, Arc,
+                WebHID isn't available in this browser. Use Chrome, Edge, Arc,
                 Brave, or Opera. Safari and Firefox don't support it yet.
               </p>
             </div>
           )}
+
+          {/* Inline troubleshooter, always visible */}
+          <div className="mt-8 pt-6 border-t border-ink-400">
+            <div className="text-2xs tracking-widest uppercase text-text-muted mb-3">
+              TROUBLESHOOT // DEVICE NOT IN PICKER
+            </div>
+            <ul className="space-y-2 text-sm text-text-secondary leading-relaxed">
+              <Diagnostic>
+                Check the cable. Some USB-C cables are charge-only and don't
+                pass data. Try a known-good cable.
+              </Diagnostic>
+              <Diagnostic>
+                Confirm the keyboard's LCD is showing <span className="text-phosphor font-mono">USB</span> as
+                active. If it shows BT or 2.4G, press Fn + T again to cycle.
+              </Diagnostic>
+              <Diagnostic>
+                Try a different USB port. Hubs and dongles sometimes drop HID
+                devices. Plug straight into the machine.
+              </Diagnostic>
+              <Diagnostic>
+                Quit any other app that might be holding the HID interface
+                (the official Chilkey driver, VIA, QMK Toolbox).
+              </Diagnostic>
+              <Diagnostic>
+                Unplug, wait 3 seconds, plug back in. Click CONNECT again.
+              </Diagnostic>
+            </ul>
+          </div>
         </Panel>
 
         {/* Spec footer */}
@@ -126,6 +164,44 @@ export function ConnectView({ status, onConnect }: ConnectViewProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+interface StepProps {
+  index: string;
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}
+
+function Step({ index, title, body, action }: StepProps) {
+  return (
+    <li className="grid grid-cols-[auto,1fr,auto] gap-4 sm:gap-6 items-start">
+      <div
+        className={cn(
+          'h-10 w-10 flex items-center justify-center border border-ink-400',
+          'text-2xs tracking-widest uppercase text-phosphor font-mono'
+        )}
+      >
+        {index}
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm tracking-widest uppercase text-text-primary">
+          {title}
+        </div>
+        <p className="text-sm text-text-secondary mt-1 leading-relaxed">{body}</p>
+      </div>
+      {action && <div className="self-center">{action}</div>}
+    </li>
+  );
+}
+
+function Diagnostic({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span className="text-text-faint mt-px shrink-0">{'>'}</span>
+      <span>{children}</span>
+    </li>
   );
 }
 

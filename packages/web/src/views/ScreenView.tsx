@@ -171,37 +171,55 @@ export function ScreenView({ device }: ScreenViewProps) {
             </div>
           </Panel>
 
-          <Panel padding="lg">
-            <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
-              COMING IN V1.1
-            </div>
-            <h3 className="text-lg text-text-primary mb-3">Live widget system</h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Turn the screen into a live data surface that pushes new content on
-              a timer. Planned widgets:
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                'Real clock',
-                'Weather',
-                'Now Playing',
-                'Calendar next-up',
-                'CPU/RAM/Net',
-                'Pomodoro timer',
-                'GitHub notifs',
-                'Stocks ticker',
-                'Custom text',
-                'Discord status',
-                'RSS headline',
-                'Theme pack',
-              ].map((w) => (
-                <div
-                  key={w}
-                  className="px-3 py-2 border border-ink-400 text-2xs tracking-widest uppercase text-text-secondary"
-                >
-                  {w}
+          <Panel padding="lg" className="relative overflow-hidden">
+            {/* Diagonal hatch fill to read as non-interactive */}
+            <div
+              aria-hidden
+              className="absolute inset-0 pointer-events-none opacity-[0.04]"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(135deg, #5dd674 0 1px, transparent 1px 8px)',
+              }}
+            />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-2xs tracking-widest uppercase text-text-muted">
+                  ROADMAP // V1.1
                 </div>
-              ))}
+                <span className="px-2 py-0.5 border border-text-faint text-2xs tracking-widest uppercase text-text-muted">
+                  NOT BUILT
+                </span>
+              </div>
+              <h3 className="text-lg text-text-muted mb-3">Live widget system</h3>
+              <p className="text-sm text-text-faint mb-4 leading-relaxed">
+                Turn the screen into a live data surface that pushes new content
+                on a timer. None of the cards below are wired up yet. Listed
+                here so you can see what's planned.
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  'Real clock',
+                  'Weather',
+                  'Now Playing',
+                  'Calendar next-up',
+                  'CPU/RAM/Net',
+                  'Pomodoro timer',
+                  'GitHub notifs',
+                  'Stocks ticker',
+                  'Custom text',
+                  'Discord status',
+                  'RSS headline',
+                  'Theme pack',
+                ].map((w) => (
+                  <div
+                    key={w}
+                    aria-disabled
+                    className="px-3 py-2 border border-dashed border-ink-400 text-2xs tracking-widest uppercase text-text-faint select-none cursor-not-allowed"
+                  >
+                    {w}
+                  </div>
+                ))}
+              </div>
             </div>
           </Panel>
         </div>

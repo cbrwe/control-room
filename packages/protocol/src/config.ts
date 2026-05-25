@@ -105,6 +105,27 @@ export function winLockPayload(locked: boolean): Uint8Array {
   return packet;
 }
 
+/**
+ * LCD on-screen language. Ships in Chinese. The bundle has no exposed setter
+ * for this so the payload format is unknown; best guess follows the pattern of
+ * the other config helpers (discriminator byte at [3], value byte at [4]). If
+ * this doesn't fire, change the discriminator first (try 0x50, 0x60), then
+ * try moving the value byte slot.
+ */
+export const Language = {
+  Chinese: 0,
+  English: 1,
+} as const;
+export type Language = (typeof Language)[keyof typeof Language];
+
+export function languagePayload(lang: Language): Uint8Array {
+  const packet = emptyPacket();
+  packet[3] = 0x40; // discriminator byte, guess (next 0x10 step after 0x10/0x20/0x30)
+  packet[4] = lang;
+  applyTerminator(packet);
+  return packet;
+}
+
 function clampMinutes(v: number): number {
   return Math.max(0, Math.min(255, Math.floor(v)));
 }

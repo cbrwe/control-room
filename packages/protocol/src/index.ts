@@ -104,11 +104,13 @@ export {
 // Config payloads
 export {
   SystemMode,
+  Language,
   timeSyncPayload,
   timeSyncPayloadBCD,
   sleepTimerPayload,
   systemModePayload,
   winLockPayload,
+  languagePayload,
 } from './config.js';
 
 // Main device class

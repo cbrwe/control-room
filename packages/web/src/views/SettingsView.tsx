@@ -6,7 +6,9 @@ import {
   systemModePayload,
   sleepTimerPayload,
   winLockPayload,
+  languagePayload,
   SystemMode,
+  Language,
 } from '@control-room/protocol';
 import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
@@ -30,6 +32,8 @@ export function SettingsView({ device }: SettingsViewProps) {
   const [sleepL1, setSleepL1] = useState(5);
   const [sleepL2, setSleepL2] = useState(30);
   const [winLock, setWinLock] = useState(false);
+  const [language, setLanguage] = useState<Language>(Language.English);
+  const [langAction, setLangAction] = useState<ActionState>({ status: 'idle' });
 
   const syncTime = async () => {
     setTimeAction({ status: 'pending' });
@@ -70,6 +74,23 @@ export function SettingsView({ device }: SettingsViewProps) {
       await device.writeConfig(winLockPayload(locked));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const applyLanguage = async (lang: Language) => {
+    setLanguage(lang);
+    setLangAction({ status: 'pending' });
+    try {
+      await device.writeConfig(languagePayload(lang));
+      setLangAction({
+        status: 'ok',
+        message: `SENT ${lang === Language.English ? 'EN' : 'CN'}`,
+      });
+    } catch (err) {
+      setLangAction({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'unknown error',
+      });
     }
   };
 
@@ -216,6 +237,86 @@ export function SettingsView({ device }: SettingsViewProps) {
             </p>
           </div>
           <Switch checked={winLock} onChange={applyWinLock} />
+        </div>
+      </Panel>
+
+      {/* LCD language */}
+      <Panel padding="lg">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-2xs tracking-widest uppercase text-text-muted">
+                LCD LANGUAGE
+              </div>
+              <span className="px-2 py-0.5 border border-amber/40 text-2xs tracking-widest uppercase text-amber">
+                EXPERIMENTAL
+              </span>
+            </div>
+            <h3 className="text-lg text-text-primary">On-screen text language</h3>
+            <p className="text-sm text-text-secondary mt-2 max-w-xl leading-relaxed">
+              The ND75 ships with the LCD strings in Chinese. The bundle has no
+              published setter for this, so we're firing a best-guess payload on
+              opcode 0x28. If nothing changes on the screen, the byte layout is
+              wrong and we iterate.
+            </p>
+          </div>
+          <StatusPill
+            variant={
+              langAction.status === 'pending'
+                ? 'warn'
+                : langAction.status === 'ok'
+                  ? 'live'
+                  : langAction.status === 'error'
+                    ? 'error'
+                    : 'idle'
+            }
+            label={
+              langAction.status === 'idle'
+                ? 'READY'
+                : langAction.status === 'pending'
+                  ? 'SENDING'
+                  : langAction.status === 'ok'
+                    ? 'SENT'
+                    : 'FAULT'
+            }
+            blink={langAction.status === 'pending'}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex border border-ink-400">
+            <button
+              onClick={() => applyLanguage(Language.English)}
+              className={cn(
+                'h-10 px-4 text-2xs tracking-widest uppercase border-r border-ink-400',
+                language === Language.English
+                  ? 'text-phosphor bg-phosphor/10'
+                  : 'text-text-muted'
+              )}
+            >
+              ENGLISH
+            </button>
+            <button
+              onClick={() => applyLanguage(Language.Chinese)}
+              className={cn(
+                'h-10 px-4 text-2xs tracking-widest uppercase',
+                language === Language.Chinese
+                  ? 'text-phosphor bg-phosphor/10'
+                  : 'text-text-muted'
+              )}
+            >
+              中文
+            </button>
+          </div>
+          {langAction.message && (
+            <span
+              className={cn(
+                'text-2xs tracking-widest uppercase',
+                langAction.status === 'ok' ? 'text-phosphor' : 'text-danger'
+              )}
+            >
+              {langAction.message}
+            </span>
+          )}
         </div>
       </Panel>
     </div>
