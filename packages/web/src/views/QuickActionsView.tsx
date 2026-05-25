@@ -243,19 +243,26 @@ export function QuickActionsView({ device }: QuickActionsViewProps) {
         <div className="text-2xs tracking-widest uppercase text-text-muted mb-2">
           CONNECTION MODE
         </div>
-        <h3 className="text-lg text-text-primary">Hardware-controlled, not software</h3>
+        <h3 className="text-lg text-text-primary">Keyboard remembers your last mode</h3>
         <p className="text-sm text-text-secondary mt-2 max-w-2xl leading-relaxed">
-          The ND75 switches between USB, Bluetooth, and the 2.4G dongle via
-          on-keyboard Fn combos. The official driver doesn't expose this through
-          HID and neither can we. Use the combos below on the keyboard itself.
+          Set the connection mode once on the keyboard and it stays there. Across
+          reboots, across moving to another machine. There's no "ON ONCE" vs
+          "ON ALWAYS" toggle to set: the firmware always persists whatever mode
+          was last active. If you want your ND75 to always wake into Bluetooth,
+          switch to BT once and that becomes the default.
         </p>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <ModeRef label="USB WIRED" combo="Fn + T" note="Required for this app" />
-          <ModeRef label="BLUETOOTH" combo="Fn + Q/W/E" note="Slots 1/2/3, hold 3s to pair" />
+          <ModeRef label="USB WIRED" combo="Fn + T" note="Required to use this app" />
+          <ModeRef label="BLUETOOTH" combo="Fn + Q / W / E" note="Slots 1/2/3, hold 3s to pair" />
           <ModeRef label="2.4G DONGLE" combo="Fn + R" note="Hold 3s to pair" />
         </div>
         <p className="text-2xs tracking-widest uppercase text-text-faint mt-4">
-          NOTE: COMBOS BASED ON THE ND75 MANUAL. VERIFY ON YOUR DEVICE.
+          NOTE: COMBOS FROM THE ND75 MANUAL. VERIFY ON YOUR DEVICE.
+        </p>
+        <p className="text-2xs tracking-widest uppercase text-text-faint mt-2">
+          WHY NOT IN SOFTWARE: THE OFFICIAL DRIVER USES 14 HID OPCODES.
+          NONE ARE FOR CONNECTION-MODE PERSISTENCE. ALL ND75 RADIO
+          SWITCHING IS DONE BY THE FIRMWARE FROM THE ON-DEVICE Fn KEYS.
         </p>
       </Panel>
     </div>

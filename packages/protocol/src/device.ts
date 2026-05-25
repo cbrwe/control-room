@@ -194,8 +194,12 @@ export class ND75Device {
       await sleep(DELAY.KEYMAP_PACKET_MS);
     }
 
+    // Keymap write END takes [8]=1, with a 20ms warm-up. Matches the bundle's
+    // set0411 / set0427 final block byte-for-byte.
     await sleep(DELAY.LONG_MS);
-    await this.endTransaction();
+    await this.control.sendFeatureReport(0, endPacket({ param: 1 }));
+    await sleep(30);
+    await this.control.receiveFeatureReport(0);
   }
 
   // -------------------------------------------------------------------------
@@ -261,6 +265,12 @@ export class ND75Device {
    * Upload an image (or a frame of a GIF) to the LCD screen. Pixel data must
    * be in the format the firmware expects, typically RGB565 at 135x240.
    *
+   * Flow control matches the bundle's set0472: we send the FIRST chunk after
+   * TFT_BEGIN, then the keyboard sends an input report on the screen interface
+   * each time it's ready for the next chunk. After the final ack we send END.
+   * Blasting all chunks back-to-back without waiting drops frames and the
+   * keyboard rejects subsequent feature reports.
+   *
    * If only a single HID interface was provided, throws.
    */
   async uploadImage(pixelData: Uint8Array): Promise<void> {
@@ -270,9 +280,13 @@ export class ND75Device {
       );
     }
 
+    const screen = this.screen;
+    const chunks = chunkImage(pixelData);
+    if (chunks.length === 0) return;
+
     await this.beginTransaction();
 
-    const begin = tftBeginPacket(pixelData.length);
+    const begin = tftBeginPacket(chunks.length);
     await sleep(DELAY.STEP_MS);
     await this.control.sendFeatureReport(0, begin);
     await sleep(DELAY.STEP_MS);
@@ -282,10 +296,33 @@ export class ND75Device {
       throw new Error('TFT_BEGIN was not acknowledged.');
     }
 
-    const chunks = chunkImage(pixelData);
-    for (const chunk of chunks) {
-      await this.screen.sendOutputReport(0, chunk);
-    }
+    // Drive the chunk pump from the screen interface's input reports.
+    let chunkIndex = 0;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`TFT upload timed out at chunk ${chunkIndex}/${chunks.length}.`));
+      }, 30000);
+
+      screen.onInputReport(() => {
+        if (chunkIndex >= chunks.length - 1) {
+          clearTimeout(timeout);
+          resolve();
+          return;
+        }
+        chunkIndex++;
+        screen.sendOutputReport(0, chunks[chunkIndex]!).catch((err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+
+      // Kick it off — send the first chunk; the keyboard's reply on
+      // device3 triggers each subsequent send.
+      screen.sendOutputReport(0, chunks[0]!).catch((err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
 
     await this.endTransaction();
   }

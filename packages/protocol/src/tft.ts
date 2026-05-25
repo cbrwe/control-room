@@ -31,20 +31,19 @@ export const SCREEN = {
 export const FRAME_BYTES = SCREEN.width * SCREEN.height * SCREEN.bytesPerPixel;
 
 /**
- * Build the TFT_BEGIN command packet. The length goes in bytes [8] (low) and
- * [9] (high), little-endian. The 0x02 sub-byte at [2] is hard-coded as it
- * appears constant in the bundle.
+ * Build the TFT_BEGIN command packet. The bundle's set0472 stores the chunk
+ * COUNT in bytes [8] (low) and [9] (high), little-endian — NOT the byte length.
+ * `set0472(e, t)` uses `t.length.toString(16)` where `t` is the chunk array.
+ * The 0x02 sub-byte at [2] is hard-coded as it appears constant in the bundle.
  */
-export function tftBeginPacket(totalLengthBytes: number): Uint8Array {
-  if (totalLengthBytes < 0 || totalLengthBytes > 0xffff) {
-    throw new Error(
-      `TFT payload length ${totalLengthBytes} is out of the 16-bit range.`
-    );
+export function tftBeginPacket(chunkCount: number): Uint8Array {
+  if (chunkCount < 0 || chunkCount > 0xffff) {
+    throw new Error(`TFT chunk count ${chunkCount} is out of the 16-bit range.`);
   }
   return commandPacket(OP.TFT_BEGIN, {
     sub: 0x02,
-    param: totalLengthBytes & 0xff,
-    paramHigh: (totalLengthBytes >> 8) & 0xff,
+    param: chunkCount & 0xff,
+    paramHigh: (chunkCount >> 8) & 0xff,
   });
 }
 

@@ -54,9 +54,17 @@ export function beginTxRgbPacket(): Uint8Array {
   return commandPacket(OP.BEGIN_TX_RGB);
 }
 
-/** Build an END (0x02) end-of-transaction packet. */
-export function endPacket(): Uint8Array {
-  return commandPacket(OP.END);
+/**
+ * Build an END (0x02) end-of-transaction packet.
+ *
+ * The bundle's set0413 (RGB) and set0428 (config) end with `[8]=0`. But the
+ * keymap-write transactions (set0411, set0427) end with `[8]=1`. Pass that
+ * via the optional param.
+ */
+export function endPacket(options: { param?: number } = {}): Uint8Array {
+  const opts: Parameters<typeof commandPacket>[1] = {};
+  if (options.param !== undefined) opts.param = options.param;
+  return commandPacket(OP.END, opts);
 }
 
 /**

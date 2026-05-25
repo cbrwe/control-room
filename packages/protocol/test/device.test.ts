@@ -175,20 +175,38 @@ describe('ND75Device', () => {
   });
 
   describe('uploadImage', () => {
-    it('sends TFT_BEGIN with little-endian length and streams chunks over the screen interface', async () => {
-      const pixels = new Uint8Array(200); // arbitrary test payload
+    it('sends TFT_BEGIN with chunk-count length and pumps chunks per input report', async () => {
+      const pixels = new Uint8Array(200);
       for (let i = 0; i < pixels.length; i++) pixels[i] = i % 256;
+      // 200 bytes / 64 per chunk = ceil(3.125) = 4 chunks
+      const expectedChunks = 4;
 
-      await device.uploadImage(pixels);
+      const ack = new Uint8Array(64);
+      ack[3] = 0x01;
+      control.queueResponse(ack); // BEGIN_TX ack
+      control.queueResponse(ack); // TFT_BEGIN ack
+
+      const uploadPromise = device.uploadImage(pixels);
+
+      // Wait for uploadImage to walk through beginTransaction + TFT_BEGIN
+      // before the input-report handler is registered. ~30ms covers all the
+      // 5ms sleep waits in the upload path.
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Pump the chunks. The keyboard sends an input report on the screen
+      // interface after receiving each chunk. The final report ends the loop.
+      for (let i = 0; i < expectedChunks; i++) {
+        screen.emitInputReport(new Uint8Array(64));
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      await uploadPromise;
 
       const tftCmd = control.sentFeatureReports[1]!;
       expect(tftCmd.data[1]).toBe(OP.TFT_BEGIN);
       expect(tftCmd.data[2]).toBe(0x02);
-      expect(tftCmd.data[8]).toBe(200 & 0xff);
-      expect(tftCmd.data[9]).toBe((200 >> 8) & 0xff);
-
-      // 200 bytes / 64 per chunk = 4 chunks (200/64 = 3.125, ceil = 4)
-      expect(screen.sentOutputReports.length).toBe(4);
+      expect(tftCmd.data[8]).toBe(expectedChunks & 0xff);
+      expect(tftCmd.data[9]).toBe((expectedChunks >> 8) & 0xff);
+      expect(screen.sentOutputReports.length).toBe(expectedChunks);
       expect(screen.sentOutputReports[0]!.data.length).toBe(64);
     });
 
