@@ -121,9 +121,31 @@ export function useDevice(): UseDeviceReturn {
       }
 
       const control = new WebHIDAdapter(controlDevice);
+      control.label = 'control';
       const screen = screenDevice ? new WebHIDAdapter(screenDevice) : undefined;
+      if (screen) screen.label = 'screen';
       const device = new ND75Device(control, screen);
       await device.open();
+
+      // Belt-and-suspenders: attach raw debug listeners to EVERY ND75 device in
+      // the pool, so if input reports arrive on a device we didn't expect we
+      // see them in the console instead of silently dropping them.
+      pool.forEach((d, i) => {
+        const tag = d === controlDevice ? `device[${i}]=control` : d === screenDevice ? `device[${i}]=screen` : `device[${i}]=other`;
+        try {
+          if (!d.opened) {
+            d.open().catch((err) => console.warn(`[CR] could not open ${tag}:`, err));
+          }
+        } catch (err) {
+          console.warn(`[CR] could not open ${tag}:`, err);
+        }
+        d.addEventListener('inputreport', (event) => {
+          const e = event as HIDInputReportEvent;
+          console.log(
+            `[CR][debug-pool] inputreport on ${tag} reportId=${e.reportId} bytes=${e.data.byteLength}`
+          );
+        });
+      });
 
       const firmware = await device.getFirmwareVersion();
       deviceRef.current = device;
