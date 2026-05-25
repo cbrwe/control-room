@@ -96,6 +96,8 @@ export {
 export {
   SCREEN,
   FRAME_BYTES,
+  TFT_CHUNK_BYTES,
+  TFT_HEADER_BYTES,
   tftBeginPacket,
   chunkImage,
   rgbaToRgb565,

@@ -48,18 +48,69 @@ export function tftBeginPacket(chunkCount: number): Uint8Array {
 }
 
 /**
- * Split a pixel buffer into 64-byte chunks for streaming over the screen
- * interface. The last chunk is zero-padded to 64 bytes; the keyboard knows
- * the real length from the TFT_BEGIN header.
+ * Size of each TFT output chunk. The screen interface's HID report descriptor
+ * uses 4096-byte output reports, NOT the usual 64-byte feature-report size.
+ * Decoded from the bundle's set0472 caller, which allocates
+ * `new Uint8Array(4096)` per chunk and references `me === 4096` as the wrap
+ * threshold.
  */
-export function chunkImage(pixelData: Uint8Array): Uint8Array[] {
+export const TFT_CHUNK_BYTES = 4096;
+
+/** Size of the metadata header on chunk 0 (frame count + delays + padding). */
+export const TFT_HEADER_BYTES = 256;
+
+/**
+ * Build the chunk array that gets streamed to the screen interface.
+ *
+ * Chunk format (from bundle's image-upload component):
+ *
+ *   chunk[0][0]        = frame count G (1 for a still image)
+ *   chunk[0][1..G]     = per-frame delay (ms) — for GIFs; ignored for stills
+ *   chunk[0][G+1..255] = 0xFF padding
+ *   chunk[0][256..]    = pixel data starts here
+ *   chunk[N][0..4095]  = continuing pixel data
+ *   last chunk         = padded with 0xFF if pixel data runs out
+ *
+ * Total chunks = ceil((pixelBytes + 256) / 4096).
+ *
+ * @param pixelData  Concatenated RGB565 pixel bytes for all frames (already
+ *                   little-endian; build with rgbaToRgb565()).
+ * @param frameDelays Per-frame delay in ms. Length 1 for a still image; up to
+ *                   60 for a GIF.
+ */
+export function chunkImage(
+  pixelData: Uint8Array,
+  frameDelays: readonly number[] = [0]
+): Uint8Array[] {
+  const frameCount = Math.max(1, frameDelays.length);
+  const chunkCount = Math.ceil((pixelData.length + TFT_HEADER_BYTES) / TFT_CHUNK_BYTES);
+
   const chunks: Uint8Array[] = [];
-  for (let offset = 0; offset < pixelData.length; offset += PACKET_SIZE) {
-    const chunk = new Uint8Array(PACKET_SIZE);
-    const end = Math.min(offset + PACKET_SIZE, pixelData.length);
-    chunk.set(pixelData.subarray(offset, end));
-    chunks.push(chunk);
+  for (let i = 0; i < chunkCount; i++) {
+    const c = new Uint8Array(TFT_CHUNK_BYTES);
+    c.fill(0xff);
+    chunks.push(c);
   }
+
+  // Header at the start of chunk 0.
+  chunks[0]![0] = frameCount & 0xff;
+  for (let i = 0; i < frameCount; i++) {
+    chunks[0]![1 + i] = (frameDelays[i] ?? 0) & 0xff;
+  }
+
+  // Pixel data starts at offset 256 of chunk 0.
+  let chunkIndex = 0;
+  let offsetInChunk = TFT_HEADER_BYTES;
+  for (let i = 0; i < pixelData.length; i++) {
+    chunks[chunkIndex]![offsetInChunk] = pixelData[i]!;
+    offsetInChunk++;
+    if (offsetInChunk === TFT_CHUNK_BYTES) {
+      offsetInChunk = 0;
+      chunkIndex++;
+      if (chunkIndex >= chunks.length) break;
+    }
+  }
+
   return chunks;
 }
 
@@ -69,8 +120,10 @@ export function chunkImage(pixelData: Uint8Array): Uint8Array[] {
  *
  *   R5 G6 B5  packed as: 0bRRRRRGGGGGGBBBBB
  *
- * Big-endian byte order is most common on these small TFT controllers; if
- * the keyboard expects little-endian, swap the order in the output.
+ * Byte order in the output is little-endian (low byte first, high byte
+ * second). Verified against the bundle's pixel converter — they assemble
+ * the 16-bit value via binary-string concatenation and write
+ * `J[ee] = lowHex; J[ee+1] = highHex`.
  */
 export function rgbaToRgb565(rgba: Uint8Array): Uint8Array {
   if (rgba.length % 4 !== 0) {
@@ -86,8 +139,8 @@ export function rgbaToRgb565(rgba: Uint8Array): Uint8Array {
     const g6 = (g >> 2) & 0x3f;
     const b5 = (b >> 3) & 0x1f;
     const packed = (r5 << 11) | (g6 << 5) | b5;
-    out[i * 2] = (packed >> 8) & 0xff;
-    out[i * 2 + 1] = packed & 0xff;
+    out[i * 2] = packed & 0xff;             // low byte first (little-endian)
+    out[i * 2 + 1] = (packed >> 8) & 0xff;  // high byte second
   }
   return out;
 }

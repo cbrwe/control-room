@@ -179,8 +179,8 @@ describe('ND75Device', () => {
     it('sends TFT_BEGIN with chunk-count length and pumps chunks per input report', async () => {
       const pixels = new Uint8Array(200);
       for (let i = 0; i < pixels.length; i++) pixels[i] = i % 256;
-      // 200 bytes / 64 per chunk = ceil(3.125) = 4 chunks
-      const expectedChunks = 4;
+      // 200 bytes + 256 header = 456, ceil(456/4096) = 1 chunk
+      const expectedChunks = 1;
 
       const ack = new Uint8Array(64);
       ack[3] = 0x01;
@@ -208,7 +208,7 @@ describe('ND75Device', () => {
       expect(tftCmd.data[8]).toBe(expectedChunks & 0xff);
       expect(tftCmd.data[9]).toBe((expectedChunks >> 8) & 0xff);
       expect(screen.sentOutputReports.length).toBe(expectedChunks);
-      expect(screen.sentOutputReports[0]!.data.length).toBe(64);
+      expect(screen.sentOutputReports[0]!.data.length).toBe(4096);
     });
 
     it('throws if no screen adapter was provided', async () => {
