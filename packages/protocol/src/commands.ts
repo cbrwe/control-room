@@ -21,9 +21,11 @@ export const TERMINATOR_LO = 0x55;
  *
  *   - control: usagePage 0xFF13 (65299), usage 0x01. Receives all 0x04-prefixed
  *     commands (keymap, RGB, config, transaction control).
- *   - screen:  usagePage 0xFFA0 (65384), usage 0x61. Receives raw TFT pixel
+ *   - screen:  usagePage 0xFF68 (65384), usage 0x61. Receives raw TFT pixel
  *     chunks via output reports and acknowledges each chunk via an input
- *     report so the host knows to send the next one.
+ *     report so the host knows to send the next one. Confirmed against
+ *     real firmware May 2026 (the bundle's 65384 decimal value reads as
+ *     0xFF68, not the 0xFFA0 the spec doc originally cited).
  *
  * Picking the wrong interface causes silent failures: feature reports get
  * rejected ("Failed to write the report") and the chunk-pump never receives
@@ -33,7 +35,7 @@ export const USB = {
   vendorId: 0x36b5,
   productId: 0x2ba7,
   control: { usagePage: 0xff13, usage: 0x01 },
-  screen: { usagePage: 0xffa0, usage: 0x61 },
+  screen: { usagePage: 0xff68, usage: 0x61 },
   // Legacy aliases kept for any callers still using the flat shape.
   usagePage: 0xff13,
   usage: 0x01,

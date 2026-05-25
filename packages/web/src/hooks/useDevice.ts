@@ -116,7 +116,7 @@ export function useDevice(): UseDeviceReturn {
       }
       if (!screenDevice) {
         throw new Error(
-          'ND75 screen interface (usagePage 0xFFA0) not found. The picker likely only authorized the control row. Click CONNECT again and select EVERY Chilkey ND75 row in the device picker (Cmd-click on macOS).'
+          'ND75 screen interface (usagePage 0xFF68) not found. The picker likely only authorized the control row. Click CONNECT again and select EVERY Chilkey ND75 row in the device picker (Cmd-click on macOS).'
         );
       }
 
