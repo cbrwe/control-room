@@ -7,8 +7,6 @@ import type { HIDAdapter } from '@control-room/protocol';
 export class WebHIDAdapter implements HIDAdapter {
   private inputHandler?: (data: Uint8Array) => void;
   private listenerBound = false;
-  /** Optional label printed in console logs so we can tell adapters apart. */
-  public label?: string;
 
   constructor(private readonly device: HIDDevice) {}
 

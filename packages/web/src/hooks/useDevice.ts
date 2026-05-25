@@ -79,18 +79,6 @@ export function useDevice(): UseDeviceReturn {
       );
       const pool = ours.length >= requested.length ? ours : requested;
 
-      console.log('[CR] HID devices in pool:', pool.length);
-      pool.forEach((d, i) => {
-        console.log(
-          `[CR]   device[${i}] productName=${JSON.stringify(d.productName)} collections=${d.collections.length}`
-        );
-        d.collections.forEach((c, ci) => {
-          console.log(
-            `[CR]     collection[${ci}] usagePage=0x${c.usagePage?.toString(16)} usage=0x${c.usage?.toString(16)}`
-          );
-        });
-      });
-
       const findByCollection = (page: number, usage: number) =>
         pool.find((d) =>
           d.collections.some((c) => c.usagePage === page && c.usage === usage)
@@ -108,8 +96,6 @@ export function useDevice(): UseDeviceReturn {
         findByCollection(USB.screen.usagePage, USB.screen.usage) ??
         findByPage(USB.screen.usagePage);
 
-      console.log('[CR] picked control:', controlDevice?.productName, 'screen:', screenDevice?.productName);
-
       if (!controlDevice) {
         throw new Error(
           'ND75 control interface not found. The picker probably did not include all of the keyboard’s HID rows. Re-click CONNECT and Cmd/Ctrl-click each Chilkey ND75 row in the device picker, then click Connect.'
@@ -122,30 +108,20 @@ export function useDevice(): UseDeviceReturn {
       }
 
       const control = new WebHIDAdapter(controlDevice);
-      control.label = 'control';
       const screen = screenDevice ? new WebHIDAdapter(screenDevice) : undefined;
-      if (screen) screen.label = 'screen';
       const device = new ND75Device(control, screen);
       await device.open();
 
-      // Belt-and-suspenders: attach raw debug listeners to EVERY ND75 device in
-      // the pool, so if input reports arrive on a device we didn't expect we
-      // see them in the console instead of silently dropping them.
-      pool.forEach((d, i) => {
-        const tag = d === controlDevice ? `device[${i}]=control` : d === screenDevice ? `device[${i}]=screen` : `device[${i}]=other`;
-        try {
-          if (!d.opened) {
-            d.open().catch((err) => console.warn(`[CR] could not open ${tag}:`, err));
-          }
-        } catch (err) {
-          console.warn(`[CR] could not open ${tag}:`, err);
+      // Pre-open every other ND75 collection so OS-level pairings don't get
+      // lost on subsequent connects.
+      pool.forEach((d) => {
+        if (d !== controlDevice && d !== screenDevice && !d.opened) {
+          d.open().catch(() => {
+            // Some collections (boot keyboard, consumer) can't be claimed by
+            // user agents while the OS is using them. That's fine — we don't
+            // need them.
+          });
         }
-        d.addEventListener('inputreport', (event) => {
-          const e = event as HIDInputReportEvent;
-          console.log(
-            `[CR][debug-pool] inputreport on ${tag} reportId=${e.reportId} bytes=${e.data.byteLength}`
-          );
-        });
       });
 
       // Match the bundle's connect-time init sequence. The keyboard's screen
@@ -154,19 +130,17 @@ export function useDevice(): UseDeviceReturn {
       // any of these leaves the keyboard in a state where it accepts TFT_BEGIN
       // but never replies on the screen interface for chunk pumping.
       try {
-        console.log('[CR] init: reading base layer keymap');
         await device.readKeymap(LAYER.BASE);
         await new Promise((r) => setTimeout(r, 100));
-        console.log('[CR] init: reading FN layer keymap');
         await device.readKeymap(LAYER.FN);
         await new Promise((r) => setTimeout(r, 100));
-      } catch (initErr) {
-        console.warn('[CR] init keymap reads failed (continuing):', initErr);
+      } catch {
+        // Non-fatal: getFirmwareVersion still works without these reads, but
+        // they're needed for the TFT init handshake. If they failed, the user
+        // will see a TFT timeout later.
       }
-      console.log('[CR] init: reading firmware version');
       const firmware = await device.getFirmwareVersion();
       await new Promise((r) => setTimeout(r, 500));
-      console.log('[CR] init complete, firmware=', firmware.version);
 
       deviceRef.current = device;
       setStatus({ state: 'connected', firmware });

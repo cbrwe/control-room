@@ -19,49 +19,25 @@ export interface WidgetRenderer {
   render(ctx: CanvasRenderingContext2D, width: number, height: number): void;
 }
 
-const PHOSPHOR = '#5dd674';
-const PHOSPHOR_DIM = '#3da856';
-const INK = '#06080b';
-const TEXT_FAINT = '#5b626d';
+// High-contrast palette. The 135x240 TFT is small, low-DPI, and viewed under
+// varied light; subtle phosphor-on-near-black hides at this size. Pure black
+// background + pure phosphor (or white) foreground reads at a glance.
+const PHOSPHOR = '#00ff66';
+const INK = '#000000';
+const DIM = '#888888';
 
 function clearFrame(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillStyle = INK;
   ctx.fillRect(0, 0, w, h);
 }
 
-function drawBracketFrame(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.strokeStyle = PHOSPHOR_DIM;
-  ctx.lineWidth = 1;
-  const inset = 6;
-  const armLen = 18;
-  ctx.beginPath();
-  // Top-left
-  ctx.moveTo(inset, inset + armLen);
-  ctx.lineTo(inset, inset);
-  ctx.lineTo(inset + armLen, inset);
-  // Top-right
-  ctx.moveTo(w - inset - armLen, inset);
-  ctx.lineTo(w - inset, inset);
-  ctx.lineTo(w - inset, inset + armLen);
-  // Bottom-left
-  ctx.moveTo(inset, h - inset - armLen);
-  ctx.lineTo(inset, h - inset);
-  ctx.lineTo(inset + armLen, h - inset);
-  // Bottom-right
-  ctx.moveTo(w - inset - armLen, h - inset);
-  ctx.lineTo(w - inset, h - inset);
-  ctx.lineTo(w - inset, h - inset - armLen);
-  ctx.stroke();
-}
-
 const CLOCK: WidgetRenderer = {
   id: 'clock',
   name: 'Clock',
-  description: 'Big time, date, and weekday. Refreshes every minute.',
+  description: 'Big phosphor time. Refreshes every minute.',
   intervalSec: 60,
   render(ctx, w, h) {
     clearFrame(ctx, w, h);
-    drawBracketFrame(ctx, w, h);
 
     const now = new Date();
     const hh = now.getHours().toString().padStart(2, '0');
@@ -70,95 +46,51 @@ const CLOCK: WidgetRenderer = {
     const day = now.getDate();
     const month = now.toLocaleString(undefined, { month: 'short' }).toUpperCase();
 
-    // Header strip
-    ctx.fillStyle = TEXT_FAINT;
-    ctx.font = '8px JetBrains Mono, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('CONTROL ROOM // CLOCK', 14, 24);
-
-    // Time block — hours over minutes, big
+    // Big block time, hours over minutes, full width
     ctx.fillStyle = PHOSPHOR;
     ctx.textAlign = 'center';
-    ctx.font = 'bold 52px JetBrains Mono, monospace';
-    ctx.fillText(hh, w / 2, h / 2 - 8);
-    ctx.fillText(mm, w / 2, h / 2 + 42);
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 64px monospace';
+    ctx.fillText(hh, w / 2, h * 0.32);
+    ctx.fillText(mm, w / 2, h * 0.58);
 
-    // Separator
-    ctx.strokeStyle = PHOSPHOR_DIM;
-    ctx.beginPath();
-    ctx.moveTo(20, h / 2 - 28);
-    ctx.lineTo(w - 20, h / 2 - 28);
-    ctx.moveTo(20, h / 2 + 60);
-    ctx.lineTo(w - 20, h / 2 + 60);
-    ctx.stroke();
-
-    // Date block
-    ctx.fillStyle = '#9aa1ac';
-    ctx.font = '11px JetBrains Mono, monospace';
-    ctx.fillText(weekday, w / 2, h - 56);
+    // Solid phosphor separator between hh and mm
     ctx.fillStyle = PHOSPHOR;
-    ctx.font = 'bold 18px JetBrains Mono, monospace';
+    ctx.fillRect(20, Math.round(h * 0.45) - 1, w - 40, 2);
+
+    // Date block at the bottom in pure white
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px monospace';
     ctx.fillText(`${day} ${month}`, w / 2, h - 36);
 
-    // Footer
-    ctx.fillStyle = TEXT_FAINT;
-    ctx.font = '7px JetBrains Mono, monospace';
-    ctx.fillText('LIVE // SYNC ' + now.toLocaleTimeString().slice(0, 5), w / 2, h - 14);
+    // Weekday tag, smaller, slightly dim
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(weekday, w / 2, h - 16);
   },
 };
 
 const TEXT: WidgetRenderer = {
   id: 'text',
   name: 'Static Text',
-  description: 'A custom message. Edit and push once. Doesn\'t auto-refresh.',
+  description: 'A custom message in big phosphor type. Edit and push once.',
   intervalSec: 0,
   render(ctx, w, h) {
     clearFrame(ctx, w, h);
-    drawBracketFrame(ctx, w, h);
-    const msg = (window as Window & { __crCustomText?: string }).__crCustomText ?? 'HELLO';
+    const raw = (window as Window & { __crCustomText?: string }).__crCustomText ?? 'HELLO';
+    const msg = raw.slice(0, 12).toUpperCase();
+
     ctx.fillStyle = PHOSPHOR;
     ctx.textAlign = 'center';
-    ctx.font = 'bold 28px JetBrains Mono, monospace';
-    ctx.fillText(msg.slice(0, 12).toUpperCase(), w / 2, h / 2 + 10);
-    ctx.fillStyle = TEXT_FAINT;
-    ctx.font = '7px JetBrains Mono, monospace';
-    ctx.fillText('CONTROL ROOM // TEXT', w / 2, h - 14);
+    ctx.textBaseline = 'middle';
+    // Auto-size: bigger text for shorter messages
+    const fontSize = msg.length <= 4 ? 56 : msg.length <= 8 ? 38 : 26;
+    ctx.font = `bold ${fontSize}px monospace`;
+    ctx.fillText(msg, w / 2, h / 2);
   },
 };
 
-/**
- * Diagnostic test pattern. Renders four horizontal bands of pure colors so we
- * can see which color channels are intact and whether the byte order matches
- * the firmware's expectation. From top: RED, GREEN, BLUE, WHITE.
- *
- * Expected on a correctly-mapped RGB565 little-endian display: red band at top,
- * green below it, blue below that, white at the bottom. Any other mapping tells
- * us how to fix the encoder.
- */
-const TEST_PATTERN: WidgetRenderer = {
-  id: 'test-pattern',
-  name: 'Test Pattern (debug)',
-  description: 'Solid bands of R / G / B / W to verify pixel format end-to-end.',
-  intervalSec: 0,
-  render(ctx, w, h) {
-    const bandHeight = h / 4;
-    ctx.fillStyle = '#ff0000'; ctx.fillRect(0, 0 * bandHeight, w, bandHeight);
-    ctx.fillStyle = '#00ff00'; ctx.fillRect(0, 1 * bandHeight, w, bandHeight);
-    ctx.fillStyle = '#0000ff'; ctx.fillRect(0, 2 * bandHeight, w, bandHeight);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 3 * bandHeight, w, bandHeight);
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 14px monospace';
-    ctx.fillText('R', w / 2, 0 * bandHeight + 30);
-    ctx.fillText('G', w / 2, 1 * bandHeight + 30);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('B', w / 2, 2 * bandHeight + 30);
-    ctx.fillStyle = '#000000';
-    ctx.fillText('W', w / 2, 3 * bandHeight + 30);
-  },
-};
-
-export const WIDGETS: readonly WidgetRenderer[] = [CLOCK, TEXT, TEST_PATTERN];
+export const WIDGETS: readonly WidgetRenderer[] = [CLOCK, TEXT];
 
 export const LCD_WIDTH = SCREEN.width;
 export const LCD_HEIGHT = SCREEN.height;

@@ -65,20 +65,7 @@ export function useLcdWidget({ device, widget, active }: UseLcdWidgetOptions) {
     try {
       setState({ status: 'uploading' });
       const imageData = ctx.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT);
-      const rgba = new Uint8Array(imageData.data.buffer);
-      console.log(
-        '[CR] widget RGBA samples (first 16 bytes)',
-        Array.from(rgba.slice(0, 16))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join(' ')
-      );
-      const rgb565 = rgbaToRgb565(rgba);
-      console.log(
-        '[CR] widget RGB565 first 32 bytes',
-        Array.from(rgb565.slice(0, 32))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join(' ')
-      );
+      const rgb565 = rgbaToRgb565(new Uint8Array(imageData.data.buffer));
       await device.uploadImage(rgb565);
       const now = Date.now();
       const next: WidgetState =
