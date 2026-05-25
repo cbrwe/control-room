@@ -97,7 +97,7 @@ export function SettingsView({ device }: SettingsViewProps) {
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-4xl">
       <SectionHeader
-        index="04"
+        index="05"
         label="SETTINGS"
         subtitle="Configuration that the keyboard remembers across reboots. Includes a working time sync — Chilkey's official driver has had this broken since at least mid-2025."
       />

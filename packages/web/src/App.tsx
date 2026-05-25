@@ -4,6 +4,7 @@ import { ConnectView } from './views/ConnectView';
 import { AppHeader, type Tab } from './components/AppHeader';
 import { KeymapView } from './views/KeymapView';
 import { LightingView } from './views/LightingView';
+import { QuickActionsView } from './views/QuickActionsView';
 import { ScreenView } from './views/ScreenView';
 import { SettingsView } from './views/SettingsView';
 
@@ -26,6 +27,7 @@ export function App() {
       <main className="flex-1">
         {tab === 'keymap' && <KeymapView device={device} />}
         {tab === 'lighting' && <LightingView device={device} />}
+        {tab === 'actions' && <QuickActionsView device={device} />}
         {tab === 'screen' && <ScreenView device={device} />}
         {tab === 'settings' && <SettingsView device={device} />}
       </main>

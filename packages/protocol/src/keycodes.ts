@@ -136,18 +136,28 @@ export const CONSUMER = {
   PreviousTrack: { low: 0xb6, high: 0x00 },
   /** Next track. HID code 0xB5. */
   NextTrack: { low: 0xb5, high: 0x00 },
+  /** Play / Pause toggle. HID code 0xCD. Confirmed in the bundle as key_play_l:205. */
+  PlayPause: { low: 0xcd, high: 0x00 },
 
   // Browser shortcuts (high byte 0x02 in ND75 encoding)
   Favorites: { low: 0x2a, high: 0x02 },
   Forward: { low: 0x25, high: 0x02 },
   Back: { low: 0x24, high: 0x02 },
   Refresh: { low: 0x27, high: 0x02 },
+  /** Browser home page. HID Consumer AC Home (0x0223). Bundle: key_web_l:35, key_web_h:2. */
+  BrowserHome: { low: 0x23, high: 0x02 },
+  /** Search dialog. HID Consumer AC Search (0x0221). Bundle: key_search_l:33, key_search_h:2. */
+  Search: { low: 0x21, high: 0x02 },
 
   // Launchers (high byte 0x01 in ND75 encoding)
   /** Launch "My Computer" / Finder. */
   LaunchComputer: { low: 0x94, high: 0x01 },
   /** Launch default media player. */
   LaunchMediaPlayer: { low: 0x83, high: 0x01 },
+  /** Launch calculator. Bundle: key_calculator_l:146, key_calculator_h:1. */
+  Calculator: { low: 0x92, high: 0x01 },
+  /** Launch default email client. Bundle: key_mail_l:138, key_mail_h:1. */
+  Mail: { low: 0x8a, high: 0x01 },
 } as const;
 
 /**

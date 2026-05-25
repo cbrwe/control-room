@@ -71,7 +71,7 @@ export function ScreenView({ device }: ScreenViewProps) {
   return (
     <div className="p-6 lg:p-8 space-y-8">
       <SectionHeader
-        index="03"
+        index="04"
         label="SCREEN"
         subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display you can push images to. Live widgets (clock, weather, Now Playing, calendar) are coming in v1.1.`}
         action={

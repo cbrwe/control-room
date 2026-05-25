@@ -2,7 +2,7 @@ import { Button } from '../components/Button';
 import { StatusPill } from '../components/StatusPill';
 import type { ConnectionStatus } from '../hooks/useDevice';
 
-export type Tab = 'keymap' | 'lighting' | 'screen' | 'settings';
+export type Tab = 'keymap' | 'lighting' | 'actions' | 'screen' | 'settings';
 
 interface AppHeaderProps {
   status: ConnectionStatus;
@@ -14,8 +14,9 @@ interface AppHeaderProps {
 const TABS: { id: Tab; label: string; index: string }[] = [
   { id: 'keymap', label: 'KEYMAP', index: '01' },
   { id: 'lighting', label: 'LIGHTING', index: '02' },
-  { id: 'screen', label: 'SCREEN', index: '03' },
-  { id: 'settings', label: 'SETTINGS', index: '04' },
+  { id: 'actions', label: 'ACTIONS', index: '03' },
+  { id: 'screen', label: 'SCREEN', index: '04' },
+  { id: 'settings', label: 'SETTINGS', index: '05' },
 ];
 
 export function AppHeader({ status, activeTab, onTabChange, onDisconnect }: AppHeaderProps) {
