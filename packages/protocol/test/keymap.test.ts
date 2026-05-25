@@ -40,41 +40,50 @@ describe('encodeKeymap', () => {
     }
   });
 
-  it('encodes a plain keyboard binding in slot 0', () => {
+  it('encodes a plain keyboard binding as [0x02, modifier=0, HID, 0]', () => {
     const map: KeyBinding[] = [key(KEY.A), ...blankKeymap().slice(1)];
     const packets = encodeKeymap(map);
     const first = packets[0]!;
-    expect(first[0]).toBe(KeyPage.Keyboard);
-    expect(first[1]).toBe(KEY.A);
-    expect(first[2]).toBe(0);
+    expect(first[0]).toBe(0x02);  // keyboard type byte
+    expect(first[1]).toBe(0);     // no modifier
+    expect(first[2]).toBe(KEY.A); // HID usage at byte [2]
     expect(first[3]).toBe(0);
   });
 
-  it('encodes a binding with modifiers (Ctrl+Shift+C)', () => {
+  it('encodes a keyboard binding with modifiers (Ctrl+Shift+C)', () => {
     const binding = key(KEY.C, Modifier.CtrlL | Modifier.ShiftL);
     const map: KeyBinding[] = [binding, ...blankKeymap().slice(1)];
     const packets = encodeKeymap(map);
-    expect(packets[0]![0]).toBe(KeyPage.Keyboard);
-    expect(packets[0]![1]).toBe(KEY.C);
-    expect(packets[0]![2]).toBe(Modifier.CtrlL | Modifier.ShiftL); // 0x03
+    expect(packets[0]![0]).toBe(0x02);
+    expect(packets[0]![1]).toBe(Modifier.CtrlL | Modifier.ShiftL); // 0x03 modifier
+    expect(packets[0]![2]).toBe(KEY.C);
   });
 
-  it('encodes a consumer-control binding (Volume Up)', () => {
+  it('encodes a consumer-control binding (Volume Up) as [0x03, low, high, 0]', () => {
     const map: KeyBinding[] = [consumer(CONSUMER.VolumeUp), ...blankKeymap().slice(1)];
     const packets = encodeKeymap(map);
-    expect(packets[0]![0]).toBe(KeyPage.Consumer);
-    expect(packets[0]![1]).toBe(0xe9);
-    expect(packets[0]![2]).toBe(0x00);
+    expect(packets[0]![0]).toBe(0x03); // consumer type byte
+    expect(packets[0]![1]).toBe(0xe9); // VolumeUp low
+    expect(packets[0]![2]).toBe(0x00); // VolumeUp high
   });
 
-  it('encodes a mouse-button binding', () => {
+  it('encodes a multi-byte consumer (Calculator 0x192) with non-zero high byte', () => {
+    const map: KeyBinding[] = [consumer(CONSUMER.Calculator), ...blankKeymap().slice(1)];
+    const packets = encodeKeymap(map);
+    expect(packets[0]![0]).toBe(0x03);
+    expect(packets[0]![1]).toBe(0x92);
+    expect(packets[0]![2]).toBe(0x01);
+  });
+
+  it('encodes a mouse-button binding as [0x01, 0x01, button, 0]', () => {
     const map: KeyBinding[] = [mouse(0x04), ...blankKeymap().slice(1)];
     const packets = encodeKeymap(map);
-    expect(packets[0]![0]).toBe(KeyPage.Mouse);
-    expect(packets[0]![1]).toBe(0x04);
+    expect(packets[0]![0]).toBe(0x01); // mouse type byte
+    expect(packets[0]![1]).toBe(0x01);
+    expect(packets[0]![2]).toBe(0x04);
   });
 
-  it('packs 16 keys into the first packet', () => {
+  it('packs 16 keys into the first packet at byte [2] of each 4-byte slot', () => {
     const map: KeyBinding[] = [
       key(KEY.A), key(KEY.B), key(KEY.C), key(KEY.D),
       key(KEY.E), key(KEY.F), key(KEY.G), key(KEY.H),
@@ -84,17 +93,17 @@ describe('encodeKeymap', () => {
     ];
     const packets = encodeKeymap(map);
     const first = packets[0]!;
-    // Each key takes 4 bytes; verify all 16 in the first packet
-    expect(first[1]).toBe(KEY.A);
-    expect(first[5]).toBe(KEY.B);
-    expect(first[9]).toBe(KEY.C);
-    expect(first[61]).toBe(KEY.P);
+    // HID usage codes land at byte [2] of each 4-byte entry.
+    expect(first[2]).toBe(KEY.A);
+    expect(first[6]).toBe(KEY.B);
+    expect(first[10]).toBe(KEY.C);
+    expect(first[62]).toBe(KEY.P);
   });
 
   it('overflows into the second packet at slot 16', () => {
     const map: KeyBinding[] = [...blankKeymap().slice(0, 16), key(KEY.Q), ...blankKeymap().slice(17)];
     const packets = encodeKeymap(map);
-    expect(packets[1]![1]).toBe(KEY.Q);
+    expect(packets[1]![2]).toBe(KEY.Q); // HID usage at byte [2] of the 4-byte slot
   });
 
   it('rejects keymaps larger than MAX_KEY_SLOTS', () => {

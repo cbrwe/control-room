@@ -82,8 +82,9 @@ describe('ND75Device', () => {
       expect(sent[1]!.data[1]).toBe(OP.WRITE_KEYMAP_L0);
       expect(sent[1]!.data[8]).toBe(KEYMAP_PACKET_COUNT);
 
-      // First payload packet should have key(A) encoded at bytes [0..3]
-      expect(sent[2]!.data[1]).toBe(KEY.A);
+      // First payload packet, slot 0: [0x02, modifier=0, KEY.A, 0]
+      expect(sent[2]!.data[0]).toBe(0x02);
+      expect(sent[2]!.data[2]).toBe(KEY.A);
 
       // Last command should be END
       expect(sent[sent.length - 1]!.data[1]).toBe(OP.END);

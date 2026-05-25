@@ -21,6 +21,16 @@ export interface KeyBinding {
   modifiers?: number;
 }
 
+/**
+ * Logical binding category. NOTE: these are NOT the wire-byte values. The
+ * wire byte at position [0] of a key entry uses different numbers (decoded
+ * from the bundle's keymap catalog strings — see encodeKeymap for the mapping):
+ *
+ *   logical Keyboard → wire byte 0 = 0x02
+ *   logical Consumer → wire byte 0 = 0x03
+ *   logical Mouse    → wire byte 0 = 0x01
+ *   logical System   → wire byte 0 = 0x03 (system uses the consumer slot)
+ */
 export const KeyPage = {
   Keyboard: 0x00,
   System: 0x01,
