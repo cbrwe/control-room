@@ -5,8 +5,9 @@ import { Button } from '../components/Button';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../components/StatusPill';
 import { formatBytes, cn } from '../lib/utils';
-import { WIDGETS, type WidgetRenderer } from '../lib/widgets';
+import { WIDGETS, type Widget } from '../lib/widgets';
 import { useLcdWidget } from '../hooks/useLcdWidget';
+import { WidgetSettings } from '../components/WidgetSettings';
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -27,7 +28,7 @@ export function ScreenView({ device }: ScreenViewProps) {
   const [widgetId, setWidgetId] = useState<string | null>('clock');
   const [widgetActive, setWidgetActive] = useState(false);
   const [customText, setCustomText] = useState('HELLO');
-  const widget: WidgetRenderer | null = widgetId
+  const widget: Widget | null = widgetId
     ? WIDGETS.find((w) => w.id === widgetId) ?? null
     : null;
   // Stash custom text on window so the text widget can read it without prop drilling.
@@ -328,6 +329,8 @@ export function ScreenView({ device }: ScreenViewProps) {
               WIDGET PREVIEW // {SCREEN.width}×{SCREEN.height}
             </p>
           </Panel>
+
+          <WidgetSettings />
         </div>
       </div>
     </div>

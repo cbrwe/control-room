@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDevice } from './hooks/useDevice';
 import { ConnectView } from './views/ConnectView';
 import { AppHeader, type Tab } from './components/AppHeader';
@@ -7,10 +7,19 @@ import { LightingView } from './views/LightingView';
 import { QuickActionsView } from './views/QuickActionsView';
 import { ScreenView } from './views/ScreenView';
 import { SettingsView } from './views/SettingsView';
+import { handleAuthCallback } from './lib/widgets/spotify-oauth';
 
 export function App() {
   const { status, device, connect, disconnect } = useDevice();
   const [tab, setTab] = useState<Tab>('lighting');
+
+  // Handle Spotify OAuth redirect when the user lands back on the app.
+  // Runs once on mount; clears the ?code from the URL on success.
+  useEffect(() => {
+    handleAuthCallback().catch((err) => {
+      console.error('Spotify auth callback failed:', err);
+    });
+  }, []);
 
   if (status.state !== 'connected' || !device) {
     return <ConnectView status={status} onConnect={connect} />;
