@@ -126,7 +126,39 @@ const TEXT: WidgetRenderer = {
   },
 };
 
-export const WIDGETS: readonly WidgetRenderer[] = [CLOCK, TEXT];
+/**
+ * Diagnostic test pattern. Renders four horizontal bands of pure colors so we
+ * can see which color channels are intact and whether the byte order matches
+ * the firmware's expectation. From top: RED, GREEN, BLUE, WHITE.
+ *
+ * Expected on a correctly-mapped RGB565 little-endian display: red band at top,
+ * green below it, blue below that, white at the bottom. Any other mapping tells
+ * us how to fix the encoder.
+ */
+const TEST_PATTERN: WidgetRenderer = {
+  id: 'test-pattern',
+  name: 'Test Pattern (debug)',
+  description: 'Solid bands of R / G / B / W to verify pixel format end-to-end.',
+  intervalSec: 0,
+  render(ctx, w, h) {
+    const bandHeight = h / 4;
+    ctx.fillStyle = '#ff0000'; ctx.fillRect(0, 0 * bandHeight, w, bandHeight);
+    ctx.fillStyle = '#00ff00'; ctx.fillRect(0, 1 * bandHeight, w, bandHeight);
+    ctx.fillStyle = '#0000ff'; ctx.fillRect(0, 2 * bandHeight, w, bandHeight);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 3 * bandHeight, w, bandHeight);
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('R', w / 2, 0 * bandHeight + 30);
+    ctx.fillText('G', w / 2, 1 * bandHeight + 30);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('B', w / 2, 2 * bandHeight + 30);
+    ctx.fillStyle = '#000000';
+    ctx.fillText('W', w / 2, 3 * bandHeight + 30);
+  },
+};
+
+export const WIDGETS: readonly WidgetRenderer[] = [CLOCK, TEXT, TEST_PATTERN];
 
 export const LCD_WIDTH = SCREEN.width;
 export const LCD_HEIGHT = SCREEN.height;
