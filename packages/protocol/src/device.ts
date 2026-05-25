@@ -175,31 +175,48 @@ export class ND75Device {
 
   /** Write a complete keymap layer back to the keyboard. */
   async writeKeymap(layer: Layer, keymap: Keymap): Promise<void> {
-    await this.beginTransaction();
+    console.log(`[CR] writeKeymap layer=${layer} start`);
+    try {
+      await this.beginTransaction();
+      console.log('[CR] writeKeymap BEGIN_TX acked');
 
-    const opcode = writeKeymapOp(layer);
-    const cmd = commandPacket(opcode, { param: KEYMAP_PACKET_COUNT });
-    await sleep(DELAY.STEP_MS);
-    await this.control.sendFeatureReport(0, cmd);
-    await sleep(DELAY.STEP_MS);
+      const opcode = writeKeymapOp(layer);
+      const cmd = commandPacket(opcode, { param: KEYMAP_PACKET_COUNT });
+      await sleep(DELAY.STEP_MS);
+      await this.control.sendFeatureReport(0, cmd);
+      console.log(`[CR] writeKeymap opcode 0x${opcode.toString(16)} sent`);
+      await sleep(DELAY.STEP_MS);
 
-    const ack = await this.control.receiveFeatureReport(0);
-    if (!isAck(ack)) {
-      throw new Error(`Keymap write command for layer ${layer} was rejected.`);
+      const ack = await this.control.receiveFeatureReport(0);
+      console.log(`[CR] writeKeymap opcode ACK [3]=${ack[3]}`);
+      if (!isAck(ack)) {
+        throw new Error(`Keymap write command for layer ${layer} was rejected.`);
+      }
+
+      const packets = encodeKeymap(keymap);
+      for (let i = 0; i < packets.length; i++) {
+        try {
+          await this.control.sendFeatureReport(0, packets[i]!);
+          console.log(`[CR] writeKeymap data packet ${i + 1}/${packets.length} sent`);
+        } catch (err) {
+          console.error(`[CR] writeKeymap FAILED at packet ${i + 1}/${packets.length}:`, err);
+          throw err;
+        }
+        await sleep(DELAY.KEYMAP_PACKET_MS);
+      }
+
+      // Keymap write END takes [8]=1, with a 20ms warm-up. Matches the bundle's
+      // set0411 / set0427 final block byte-for-byte.
+      await sleep(DELAY.LONG_MS);
+      await this.control.sendFeatureReport(0, endPacket({ param: 1 }));
+      console.log('[CR] writeKeymap END sent');
+      await sleep(30);
+      const closeAck = await this.control.receiveFeatureReport(0);
+      console.log(`[CR] writeKeymap END ACK [3]=${closeAck[3]}`);
+    } catch (err) {
+      console.error('[CR] writeKeymap threw:', err);
+      throw err;
     }
-
-    const packets = encodeKeymap(keymap);
-    for (const packet of packets) {
-      await this.control.sendFeatureReport(0, packet);
-      await sleep(DELAY.KEYMAP_PACKET_MS);
-    }
-
-    // Keymap write END takes [8]=1, with a 20ms warm-up. Matches the bundle's
-    // set0411 / set0427 final block byte-for-byte.
-    await sleep(DELAY.LONG_MS);
-    await this.control.sendFeatureReport(0, endPacket({ param: 1 }));
-    await sleep(30);
-    await this.control.receiveFeatureReport(0);
   }
 
   // -------------------------------------------------------------------------
@@ -284,47 +301,69 @@ export class ND75Device {
     const chunks = chunkImage(pixelData);
     if (chunks.length === 0) return;
 
-    await this.beginTransaction();
+    console.log(`[CR] uploadImage start chunks=${chunks.length} bytes=${pixelData.length}`);
+    try {
+      await this.beginTransaction();
+      console.log('[CR] uploadImage BEGIN_TX acked');
 
-    const begin = tftBeginPacket(chunks.length);
-    await sleep(DELAY.STEP_MS);
-    await this.control.sendFeatureReport(0, begin);
-    await sleep(DELAY.STEP_MS);
+      const begin = tftBeginPacket(chunks.length);
+      await sleep(DELAY.STEP_MS);
+      await this.control.sendFeatureReport(0, begin);
+      await sleep(DELAY.STEP_MS);
 
-    const ack = await this.control.receiveFeatureReport(0);
-    if (!isAck(ack)) {
-      throw new Error('TFT_BEGIN was not acknowledged.');
-    }
+      const ack = await this.control.receiveFeatureReport(0);
+      console.log(`[CR] uploadImage TFT_BEGIN ACK [3]=${ack[3]}`);
+      if (!isAck(ack)) {
+        throw new Error('TFT_BEGIN was not acknowledged.');
+      }
 
-    // Drive the chunk pump from the screen interface's input reports.
-    let chunkIndex = 0;
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`TFT upload timed out at chunk ${chunkIndex}/${chunks.length}.`));
-      }, 30000);
+      // Drive the chunk pump from the screen interface's input reports.
+      let chunkIndex = 0;
+      let reportCount = 0;
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(
+            new Error(
+              `TFT upload timed out at chunk ${chunkIndex}/${chunks.length} (received ${reportCount} input reports).`
+            )
+          );
+        }, 30000);
 
-      screen.onInputReport(() => {
-        if (chunkIndex >= chunks.length - 1) {
-          clearTimeout(timeout);
-          resolve();
-          return;
-        }
-        chunkIndex++;
-        screen.sendOutputReport(0, chunks[chunkIndex]!).catch((err) => {
+        screen.onInputReport(() => {
+          reportCount++;
+          if (reportCount <= 3 || reportCount % 100 === 0) {
+            console.log(`[CR] uploadImage input report #${reportCount} at chunkIndex=${chunkIndex}`);
+          }
+          if (chunkIndex >= chunks.length - 1) {
+            clearTimeout(timeout);
+            console.log(`[CR] uploadImage all ${chunks.length} chunks acked, resolving`);
+            resolve();
+            return;
+          }
+          chunkIndex++;
+          screen.sendOutputReport(0, chunks[chunkIndex]!).catch((err) => {
+            console.error(`[CR] uploadImage chunk ${chunkIndex} send threw:`, err);
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        // Kick it off — send the first chunk; the keyboard's reply on
+        // the screen interface triggers each subsequent send.
+        console.log('[CR] uploadImage sending chunk 0');
+        screen.sendOutputReport(0, chunks[0]!).catch((err) => {
+          console.error('[CR] uploadImage chunk 0 send threw:', err);
           clearTimeout(timeout);
           reject(err);
         });
       });
 
-      // Kick it off — send the first chunk; the keyboard's reply on
-      // device3 triggers each subsequent send.
-      screen.sendOutputReport(0, chunks[0]!).catch((err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-    });
-
-    await this.endTransaction();
+      await this.endTransaction();
+      console.log('[CR] uploadImage done');
+    } catch (err) {
+      console.error('[CR] uploadImage threw:', err);
+      throw err;
+    }
   }
 
   // -------------------------------------------------------------------------
