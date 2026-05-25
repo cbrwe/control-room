@@ -10,6 +10,7 @@ import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
 import { SectionHeader } from '../components/SectionHeader';
 import { KeyboardLayout } from '../components/KeyboardLayout';
+import { ND75_LAYOUT } from '../lib/nd75-layout';
 import { cn, rgbToHex, hexToRgb } from '../lib/utils';
 
 interface LightingViewProps {
@@ -81,7 +82,7 @@ export function LightingView({ device }: LightingViewProps) {
               state.mode === LightingMode.Off
                 ? {}
                 : Object.fromEntries(
-                    Array.from({ length: 87 }, (_, i) => [i, hex])
+                    ND75_LAYOUT.map((k) => [k.slot, hex])
                   )
             }
           />

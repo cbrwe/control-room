@@ -22,54 +22,48 @@ export type SystemMode = (typeof SystemMode)[keyof typeof SystemMode];
 /**
  * Build a time-sync config payload.
  *
- * The bundle's caller for time sync passes individual hex-string bytes into
- * slots [3]..[10] then applies the terminator. The most likely format,
- * matching how the firmware probably parses RTC writes, is:
+ * Byte layout decoded from the official bundle's only caller of `set0428`
+ * (the "Time Correction" button). Each field is BCD-encoded: the bundle does
+ * `date.getMonth().toString(16).padStart(2,"0")` then `parseInt(..., 16)`,
+ * which packs each decimal digit pair as if it were hex (e.g. minute 47
+ * becomes 0x47, hour 13 becomes 0x13).
  *
- *   [3]  year (offset from 2000)
- *   [4]  month (1-12)
- *   [5]  day of month (1-31)
- *   [6]  day of week (0-6, Sunday = 0)
- *   [7]  hour (0-23)
- *   [8]  minute (0-59)
- *   [9]  second (0-59)
- *   [10] reserved / 0
+ *   [3]  year (year - 2000, BCD)
+ *   [4]  month (1-12, BCD)
+ *   [5]  day of month (1-31, BCD)
+ *   [6]  hour (0-23, BCD)
+ *   [7]  minute (0-59, BCD)
+ *   [8]  second (0-59, BCD)
+ *   [10] day of week (0-6, Sunday = 0, BCD)
+ *   [62] 0xAA terminator
+ *   [63] 0x55 terminator
  *
- * If the keyboard ignores this, try BCD encoding (each digit pair packed into
- * one byte — common on RTC chips).
+ * Yes, the official "Time Correction" button has been reported broken since
+ * mid-2025. Whether that's a payload bug on Chilkey's side or a firmware bug
+ * we can't tell without testing. This builder matches what their driver
+ * actually sends.
  */
 export function timeSyncPayload(date: Date = new Date()): Uint8Array {
+  const toBCD = (n: number): number =>
+    parseInt(Math.max(0, Math.floor(n)).toString().padStart(2, '0'), 16) & 0xff;
   const packet = emptyPacket();
-  packet[3] = date.getFullYear() - 2000;
-  packet[4] = date.getMonth() + 1;
-  packet[5] = date.getDate();
-  packet[6] = date.getDay();
-  packet[7] = date.getHours();
-  packet[8] = date.getMinutes();
-  packet[9] = date.getSeconds();
-  packet[10] = 0;
+  packet[3] = toBCD(date.getFullYear() - 2000);
+  packet[4] = toBCD(date.getMonth() + 1);
+  packet[5] = toBCD(date.getDate());
+  packet[6] = toBCD(date.getHours());
+  packet[7] = toBCD(date.getMinutes());
+  packet[8] = toBCD(date.getSeconds());
+  packet[10] = toBCD(date.getDay());
   applyTerminator(packet);
   return packet;
 }
 
 /**
- * Alternative BCD-encoded time-sync payload. If the byte-encoded version fails
- * against real hardware, fall back to this. RTC chips commonly take BCD.
+ * Legacy alias kept so existing UI continues to compile. The bundle's only
+ * encoding is BCD; the "byte" variant we previously shipped never had source
+ * confirmation.
  */
-export function timeSyncPayloadBCD(date: Date = new Date()): Uint8Array {
-  const toBCD = (n: number): number => ((Math.floor(n / 10) << 4) | (n % 10)) & 0xff;
-  const packet = emptyPacket();
-  packet[3] = toBCD(date.getFullYear() - 2000);
-  packet[4] = toBCD(date.getMonth() + 1);
-  packet[5] = toBCD(date.getDate());
-  packet[6] = toBCD(date.getDay());
-  packet[7] = toBCD(date.getHours());
-  packet[8] = toBCD(date.getMinutes());
-  packet[9] = toBCD(date.getSeconds());
-  packet[10] = 0;
-  applyTerminator(packet);
-  return packet;
-}
+export const timeSyncPayloadBCD = timeSyncPayload;
 
 /**
  * Build a sleep-timer config payload. The ND75 has two sleep levels:

@@ -13,32 +13,25 @@ import {
 } from '../src/index.js';
 
 describe('writeConfig payload builders', () => {
-  it('time-sync byte-encoded payload places fields in expected slots', () => {
-    const date = new Date(2026, 4, 24, 13, 5, 30); // May 24 2026 13:05:30, Sunday
+  it('time-sync payload matches the official bundle byte-for-byte', () => {
+    // May 24 2026 13:05:30, Sunday
+    const date = new Date(2026, 4, 24, 13, 5, 30);
     const p = timeSyncPayload(date);
     expect(p.length).toBe(64);
-    expect(p[3]).toBe(26); // year offset
-    expect(p[4]).toBe(5); // month 1-12
-    expect(p[5]).toBe(24); // day of month
-    expect(p[6]).toBe(0); // Sunday
-    expect(p[7]).toBe(13);
-    expect(p[8]).toBe(5);
-    expect(p[9]).toBe(30);
+    expect(p[3]).toBe(0x26); // year 26 -> BCD 0x26
+    expect(p[4]).toBe(0x05); // month 5
+    expect(p[5]).toBe(0x24); // day 24
+    expect(p[6]).toBe(0x13); // hour 13
+    expect(p[7]).toBe(0x05); // minute 5
+    expect(p[8]).toBe(0x30); // second 30
+    expect(p[10]).toBe(0x00); // day of week (Sunday = 0)
     expect(p[62]).toBe(TERMINATOR_HI);
     expect(p[63]).toBe(TERMINATOR_LO);
   });
 
-  it('time-sync BCD payload packs each field as packed BCD', () => {
+  it('timeSyncPayloadBCD is a legacy alias for timeSyncPayload', () => {
     const date = new Date(2026, 4, 24, 13, 5, 30);
-    const p = timeSyncPayloadBCD(date);
-    expect(p[3]).toBe(0x26); // year offset 26 -> 0x26
-    expect(p[4]).toBe(0x05);
-    expect(p[5]).toBe(0x24);
-    expect(p[7]).toBe(0x13);
-    expect(p[8]).toBe(0x05);
-    expect(p[9]).toBe(0x30);
-    expect(p[62]).toBe(TERMINATOR_HI);
-    expect(p[63]).toBe(TERMINATOR_LO);
+    expect(timeSyncPayloadBCD(date)).toEqual(timeSyncPayload(date));
   });
 
   it('system-mode payload writes the mode enum at byte [4] with discriminator [3]=0x20', () => {

@@ -160,13 +160,15 @@ describe('ND75Device', () => {
       expect(sent[1]!.data[1]).toBe(OP.WRITE_RGB_STATE);
 
       const payload = sent[2]!.data;
-      expect(payload[0]).toBe(255); // R
-      expect(payload[1]).toBe(128); // G
-      expect(payload[2]).toBe(0);   // B
-      expect(payload[4]).toBe(LightingMode.Static);
+      expect(payload[0]).toBe(LightingMode.Static + 1); // mode index, 1-based
+      expect(payload[1]).toBe(255); // R
+      expect(payload[2]).toBe(128); // G
+      expect(payload[3]).toBe(0);   // B
       expect(payload[8]).toBe(1);   // singleColor
       expect(payload[9]).toBe(4);   // brightness
       expect(payload[10]).toBe(2);  // speed
+      expect(payload[14]).toBe(0xaa); // terminator HI at [14], not [62]
+      expect(payload[15]).toBe(0x55); // terminator LO at [15]
 
       expect(sent[3]!.data[1]).toBe(OP.END);
     });

@@ -106,21 +106,21 @@ export interface RGBState {
   mode: LightingMode;
   /** Color used when in single-color modes. */
   color: Color;
-  /** True = use the chosen color, false = use rainbow/dynamic. Stored in byte [8]. */
+  /** Single-color flag stored in byte [8]. The bundle calls this "colorFull". */
   singleColor: boolean;
-  /** 0-6, six levels per the manual. */
+  /** 1-5, five levels per the manual's UI sliders. */
   brightness: number;
-  /** 0-6, animation speed. */
+  /** 1-5, animation speed. */
   speed: number;
-  /** Animation direction. 0 or 1 for most modes. */
+  /** Animation direction. 0-3 depending on mode. */
   direction: number;
 }
 
 export const DEFAULT_RGB_STATE: RGBState = {
   mode: LightingMode.Wave,
-  color: { r: 255, g: 255, b: 255 },
-  singleColor: false,
-  brightness: 6,
+  color: { r: 255, g: 0, b: 0 },
+  singleColor: true,
+  brightness: 5,
   speed: 3,
   direction: 0,
 };
@@ -129,30 +129,42 @@ export const DEFAULT_RGB_STATE: RGBState = {
  * Encode a global RGB state as the single 64-byte payload that follows the
  * WRITE_RGB_STATE (0x13) opcode packet.
  *
- * Byte layout (from official bundle, function set0413):
+ * Byte layout, decoded from the official bundle's per-mode default array
+ * (`Vle`) and from the read/write logic in the `NDTKLRgbKeyComponet` Vue
+ * component. The mode index is encoded directly in byte [0], 1-based
+ * (Wave = 1, ... ColorAxes = 19, Off = 0 with everything else zeroed):
  *
- *   [0]  R
- *   [1]  G
- *   [2]  B
+ *   [0]  mode + 1 (or 0 for Off)
+ *   [1]  R
+ *   [2]  G
+ *   [3]  B
  *   [8]  colorFull (single-color flag)
- *   [9]  brightness
- *   [10] speed
+ *   [9]  brightness (1-5)
+ *   [10] speed (1-5)
  *   [11] direction
- *
- * The mode index is also packed into this payload; the exact byte slot needs
- * a live USB capture to lock down. We use byte [4] based on common firmware
- * conventions and will adjust once we have reference traffic.
+ *   [14] 0xAA (terminator HI — note this lives at [14]/[15] for the RGB
+ *   [15] 0x55  state payload, NOT at [62]/[63] like multi-packet streams)
  */
 export function encodeRGBState(state: RGBState): Uint8Array {
   const packet = emptyPacket();
-  packet[0] = clampByte(state.color.r);
-  packet[1] = clampByte(state.color.g);
-  packet[2] = clampByte(state.color.b);
-  packet[4] = state.mode;
+
+  if (state.mode === LightingMode.Off) {
+    // The Off mode is a zero payload with terminator at [14]/[15].
+    packet[14] = 0xaa;
+    packet[15] = 0x55;
+    return packet;
+  }
+
+  packet[0] = state.mode + 1;
+  packet[1] = clampByte(state.color.r);
+  packet[2] = clampByte(state.color.g);
+  packet[3] = clampByte(state.color.b);
   packet[8] = state.singleColor ? 1 : 0;
   packet[9] = clampLevel(state.brightness);
   packet[10] = clampLevel(state.speed);
-  packet[11] = state.direction & 0x01;
+  packet[11] = clampByte(state.direction);
+  packet[14] = 0xaa;
+  packet[15] = 0x55;
   return packet;
 }
 
@@ -194,5 +206,5 @@ function clampByte(v: number): number {
 }
 
 function clampLevel(v: number): number {
-  return Math.max(0, Math.min(6, Math.floor(v)));
+  return Math.max(1, Math.min(5, Math.floor(v)));
 }

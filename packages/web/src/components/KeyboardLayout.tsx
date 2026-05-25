@@ -1,5 +1,5 @@
 import { cn } from '../lib/utils';
-import { ND75_LAYOUT, LAYOUT_WIDTH, LAYOUT_HEIGHT, type PhysicalKey } from '../lib/nd75-layout';
+import { ND75_LAYOUT, LAYOUT_WIDTH, LAYOUT_HEIGHT, KNOB, type PhysicalKey } from '../lib/nd75-layout';
 
 interface KeyboardLayoutProps {
   /** Currently selected slot index. */
@@ -74,7 +74,7 @@ export function KeyboardLayout({
             const x = k.col * SCALE + GAP / 2;
             const y = k.row * (4 * SCALE) + GAP / 2;
             const w = k.width * SCALE - GAP;
-            const h = (k.height ?? 4) * SCALE - GAP;
+            const h = 4 * SCALE - GAP;
             const isSelected = selectedSlot === k.slot;
             const colorOverride = keyColors?.[k.slot];
             const label = labelOverrides?.[k.slot] ?? k.label;
@@ -119,62 +119,68 @@ export function KeyboardLayout({
                   </>
                 )}
 
-                {/* Knob rendered as a circle */}
-                {k.isKnob ? (
-                  <g>
-                    <circle
-                      cx={w / 2}
-                      cy={h / 2}
-                      r={Math.min(w, h) / 2 - 2}
-                      fill={colorOverride ?? '#10141a'}
-                      stroke="#363c47"
-                      strokeWidth="1"
-                    />
-                    <circle
-                      cx={w / 2}
-                      cy={h / 2}
-                      r={Math.min(w, h) / 2 - 5}
-                      fill="none"
-                      stroke="#5dd674"
-                      strokeWidth="1"
-                      strokeDasharray="2 3"
-                      opacity="0.4"
-                    />
-                  </g>
-                ) : (
-                  <>
-                    {/* Sub-label (top right) */}
-                    {k.sublabel && (
-                      <text
-                        x={w - 4}
-                        y={9}
-                        fontSize={6}
-                        textAnchor="end"
-                        fill="#5b626d"
-                        fontFamily="JetBrains Mono, monospace"
-                      >
-                        {k.sublabel}
-                      </text>
-                    )}
-                    {/* Main label */}
-                    <text
-                      x={4}
-                      y={h - 4}
-                      fontSize={label.length > 3 ? 6 : 9}
-                      textAnchor="start"
-                      fill={isSelected ? '#5dd674' : colorOverride ? '#06080b' : '#9aa1ac'}
-                      fontFamily="JetBrains Mono, monospace"
-                      fontWeight={500}
-                      className="select-none"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      {label}
-                    </text>
-                  </>
+                {/* Sub-label (top right) */}
+                {k.sublabel && (
+                  <text
+                    x={w - 4}
+                    y={9}
+                    fontSize={6}
+                    textAnchor="end"
+                    fill="#5b626d"
+                    fontFamily="JetBrains Mono, monospace"
+                  >
+                    {k.sublabel}
+                  </text>
                 )}
+                {/* Main label */}
+                <text
+                  x={4}
+                  y={h - 4}
+                  fontSize={label.length > 3 ? 6 : 9}
+                  textAnchor="start"
+                  fill={isSelected ? '#5dd674' : colorOverride ? '#06080b' : '#9aa1ac'}
+                  fontFamily="JetBrains Mono, monospace"
+                  fontWeight={500}
+                  className="select-none"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {label}
+                </text>
               </g>
             );
           })}
+
+          {/* Rotary knob — physical hardware, separate from the keymap. */}
+          <g transform={`translate(${KNOB.col * SCALE + GAP / 2}, ${KNOB.row * 4 * SCALE + GAP / 2})`}>
+            <circle
+              cx={(KNOB.diameter * SCALE - GAP) / 2}
+              cy={(KNOB.diameter * SCALE - GAP) / 2}
+              r={(KNOB.diameter * SCALE - GAP) / 2 - 1}
+              fill="#10141a"
+              stroke="#363c47"
+              strokeWidth="1"
+            />
+            <circle
+              cx={(KNOB.diameter * SCALE - GAP) / 2}
+              cy={(KNOB.diameter * SCALE - GAP) / 2}
+              r={(KNOB.diameter * SCALE - GAP) / 2 - 4}
+              fill="none"
+              stroke="#5dd674"
+              strokeWidth="1"
+              strokeDasharray="2 3"
+              opacity="0.4"
+            />
+            <text
+              x={(KNOB.diameter * SCALE - GAP) / 2}
+              y={(KNOB.diameter * SCALE - GAP) / 2 + 3}
+              fontSize={6}
+              textAnchor="middle"
+              fill="#5b626d"
+              fontFamily="JetBrains Mono, monospace"
+            >
+              KNOB
+            </text>
+          </g>
         </g>
       </svg>
     </div>
