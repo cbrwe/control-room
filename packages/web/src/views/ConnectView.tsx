@@ -88,7 +88,7 @@ export function ConnectView({ status, onConnect }: ConnectViewProps) {
             <Step
               index="03"
               title="CLICK CONNECT"
-              body="Authorizes this browser to talk to the keyboard. Pick the Chilkey ND75 entry in the device picker."
+              body="Authorizes this browser to talk to the keyboard. The ND75 shows up as MULTIPLE rows in the picker (one per HID interface). Cmd/Ctrl-click to select ALL of them, then click Connect. Picking just one row breaks the screen and key-bind features."
               action={
                 <Button
                   variant="primary"

@@ -63,26 +63,60 @@ export function useDevice(): UseDeviceReturn {
         return;
       }
 
-      // The ND75 exposes several HID interfaces. Both control AND screen must
-      // be matched on usagePage + usage exactly — picking "any other device"
-      // for the screen ends up grabbing the regular keyboard interface, and
-      // every subsequent feature report there gets rejected.
+      // The ND75 exposes several HID interfaces (regular keyboard, consumer,
+      // control 0xFF13, and screen 0xFFA0). On Chrome's picker each interface
+      // shows as a separate row. If the user only selects one row we don't get
+      // all interfaces and uploads/writes silently fail.
+      //
+      // Strategy: pull ALL authorized matching devices that the browser knows
+      // about (not just what was just picked), then route by collection. This
+      // recovers cases where the user picked one interface here but had
+      // already authorized the others previously.
+      const allAuthorized = await navigator.hid.getDevices();
+      const ours = allAuthorized.filter(
+        (d) => d.vendorId === USB.vendorId && d.productId === USB.productId
+      );
+      const pool = ours.length >= requested.length ? ours : requested;
+
+      console.log('[CR] HID devices in pool:', pool.length);
+      pool.forEach((d, i) => {
+        console.log(
+          `[CR]   device[${i}] productName=${JSON.stringify(d.productName)} collections=${d.collections.length}`
+        );
+        d.collections.forEach((c, ci) => {
+          console.log(
+            `[CR]     collection[${ci}] usagePage=0x${c.usagePage?.toString(16)} usage=0x${c.usage?.toString(16)}`
+          );
+        });
+      });
+
       const findByCollection = (page: number, usage: number) =>
-        requested.find((d) =>
+        pool.find((d) =>
           d.collections.some((c) => c.usagePage === page && c.usage === usage)
         );
+      const findByPage = (page: number) =>
+        pool.find((d) => d.collections.some((c) => c.usagePage === page));
 
-      const controlDevice = findByCollection(USB.control.usagePage, USB.control.usage);
-      const screenDevice = findByCollection(USB.screen.usagePage, USB.screen.usage);
+      const controlDevice =
+        findByCollection(USB.control.usagePage, USB.control.usage) ??
+        findByPage(USB.control.usagePage);
+
+      // Screen: prefer exact match, fall back to any collection with the
+      // screen usagePage (some firmware revisions report different usage IDs).
+      const screenDevice =
+        findByCollection(USB.screen.usagePage, USB.screen.usage) ??
+        findByPage(USB.screen.usagePage);
+
+      console.log('[CR] picked control:', controlDevice?.productName, 'screen:', screenDevice?.productName);
 
       if (!controlDevice) {
         throw new Error(
-          'ND75 control interface (usagePage 0xFF13) not found. Did the picker include the right device?'
+          'ND75 control interface not found. The picker probably did not include all of the keyboard’s HID rows. Re-click CONNECT and Cmd/Ctrl-click each Chilkey ND75 row in the device picker, then click Connect.'
         );
       }
       if (!screenDevice) {
-        console.warn(
-          'ND75 screen interface (usagePage 0xFFA0) not found. Image and widget uploads will be unavailable.'
+        throw new Error(
+          'ND75 screen interface (usagePage 0xFFA0) not found. The picker likely only authorized the control row. Click CONNECT again and select EVERY Chilkey ND75 row in the device picker (Cmd-click on macOS).'
         );
       }
 
