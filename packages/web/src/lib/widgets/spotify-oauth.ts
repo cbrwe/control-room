@@ -1,29 +1,22 @@
 /**
  * Spotify OAuth via Authorization Code with PKCE.
  *
- * Why PKCE: SPAs can't store a client secret safely, and Spotify's
- * Authorization Code flow without secret is the modern recommended way.
+ * The Spotify app is registered ONCE (by the CONTROL ROOM project) and its
+ * client_id is baked into the build via VITE_SPOTIFY_CLIENT_ID. Users only
+ * have to click Connect and authorize on Spotify's site.
  *
- * Setup the user does ONCE in their Spotify Developer dashboard:
- *   1. Create an app
- *   2. Set Redirect URI to the exact app URL (we use the current origin + path)
- *   3. Paste the Client ID into this widget's settings
- *
- * Tokens live in localStorage. Access token refresh happens automatically
- * when fetchData detects a 401.
+ * PKCE is browser-only — no client secret is ever sent, the code_verifier
+ * proves the token exchange came from the same browser that started auth.
  */
 
 import { loadConfig, saveConfig, clearConfig } from '../widget-config';
+import { SPOTIFY_CLIENT_ID } from '../app-config';
 
 const PKCE_VERIFIER_KEY = 'cr.spotify.pkce_verifier';
 const TOKEN_CONFIG_ID = 'spotify_tokens';
-const APP_CONFIG_ID = 'spotify_app';
+const STATE_VALUE = 'cr-spotify';
 
 const SCOPES = ['user-read-currently-playing', 'user-read-playback-state'];
-
-interface SpotifyAppConfig {
-  clientId: string;
-}
 
 interface SpotifyTokens {
   accessToken: string;
@@ -49,20 +42,11 @@ function generateVerifier(): string {
   return base64UrlEncode(bytes);
 }
 
-/** Current redirect URI = the app's root, no query / hash. */
 export function getRedirectUri(): string {
   const u = new URL(window.location.href);
   u.search = '';
   u.hash = '';
   return u.toString();
-}
-
-export function getClientId(): string | undefined {
-  return loadConfig<SpotifyAppConfig>(APP_CONFIG_ID)?.clientId;
-}
-
-export function setClientId(clientId: string): void {
-  saveConfig<SpotifyAppConfig>(APP_CONFIG_ID, { clientId: clientId.trim() });
 }
 
 export function getTokens(): SpotifyTokens | null {
@@ -77,61 +61,50 @@ export function isConnected(): boolean {
   return !!getTokens()?.accessToken;
 }
 
-/** Kick off the OAuth flow by redirecting to Spotify. */
 export async function startAuth(): Promise<void> {
-  const clientId = getClientId();
-  if (!clientId) throw new Error('Spotify Client ID is not set in widget settings.');
+  if (!SPOTIFY_CLIENT_ID) {
+    throw new Error('Spotify OAuth not configured (VITE_SPOTIFY_CLIENT_ID missing).');
+  }
   const verifier = generateVerifier();
   localStorage.setItem(PKCE_VERIFIER_KEY, verifier);
   const challenge = base64UrlEncode(await sha256(verifier));
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: clientId,
+    client_id: SPOTIFY_CLIENT_ID,
     scope: SCOPES.join(' '),
     redirect_uri: getRedirectUri(),
+    state: STATE_VALUE,
     code_challenge_method: 'S256',
     code_challenge: challenge,
   });
   window.location.assign(`https://accounts.spotify.com/authorize?${params.toString()}`);
 }
 
-/**
- * If the URL has a ?code= from Spotify, exchange it for tokens. Returns true
- * if exchange happened. Clears the code from the URL on success.
- */
 export async function handleAuthCallback(): Promise<boolean> {
   const url = new URL(window.location.href);
   const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
   if (!code) return false;
-  const clientId = getClientId();
+  if (state !== STATE_VALUE) return false;
   const verifier = localStorage.getItem(PKCE_VERIFIER_KEY);
-  if (!clientId || !verifier) {
-    // Clean stale code from URL anyway.
-    url.searchParams.delete('code');
-    url.searchParams.delete('state');
-    window.history.replaceState({}, '', url.toString());
-    return false;
-  }
+  url.searchParams.delete('code');
+  url.searchParams.delete('state');
+  window.history.replaceState({}, '', url.toString());
+  localStorage.removeItem(PKCE_VERIFIER_KEY);
+  if (!verifier) return false;
 
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
     redirect_uri: getRedirectUri(),
-    client_id: clientId,
+    client_id: SPOTIFY_CLIENT_ID,
     code_verifier: verifier,
   });
-
   const r = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
-  // Clean code from URL no matter what.
-  url.searchParams.delete('code');
-  url.searchParams.delete('state');
-  window.history.replaceState({}, '', url.toString());
-  localStorage.removeItem(PKCE_VERIFIER_KEY);
-
   if (!r.ok) throw new Error(`Spotify token exchange failed: ${r.status}`);
   const j = (await r.json()) as {
     access_token: string;
@@ -148,12 +121,11 @@ export async function handleAuthCallback(): Promise<boolean> {
 
 async function refreshTokens(): Promise<SpotifyTokens> {
   const tokens = getTokens();
-  const clientId = getClientId();
-  if (!tokens || !clientId) throw new Error('No tokens to refresh');
+  if (!tokens) throw new Error('No tokens to refresh');
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: tokens.refreshToken,
-    client_id: clientId,
+    client_id: SPOTIFY_CLIENT_ID,
   });
   const r = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -178,7 +150,6 @@ async function refreshTokens(): Promise<SpotifyTokens> {
   return updated;
 }
 
-/** GET a Spotify API path with auto-refresh on 401. Returns parsed JSON or null on 204. */
 export async function spotifyFetch<T = unknown>(path: string): Promise<T | null> {
   let tokens = getTokens();
   if (!tokens) throw new Error('NOT CONNECTED');

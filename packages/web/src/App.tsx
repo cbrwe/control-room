@@ -7,17 +7,23 @@ import { LightingView } from './views/LightingView';
 import { QuickActionsView } from './views/QuickActionsView';
 import { ScreenView } from './views/ScreenView';
 import { SettingsView } from './views/SettingsView';
-import { handleAuthCallback } from './lib/widgets/spotify-oauth';
+import { handleAuthCallback as handleSpotifyCallback } from './lib/widgets/spotify-oauth';
+import { handleAuthCallback as handleGithubCallback } from './lib/widgets/github-oauth';
 
 export function App() {
   const { status, device, connect, disconnect } = useDevice();
   const [tab, setTab] = useState<Tab>('lighting');
 
-  // Handle Spotify OAuth redirect when the user lands back on the app.
-  // Runs once on mount; clears the ?code from the URL on success.
+  // Handle OAuth redirects when the user lands back on the app. Both
+  // providers redirect to the same URL with ?code= + ?state=. Each handler
+  // checks state and bails if it's not theirs. Runs once on mount; the
+  // handlers clear ?code from the URL when they consume it.
   useEffect(() => {
-    handleAuthCallback().catch((err) => {
+    handleSpotifyCallback().catch((err) => {
       console.error('Spotify auth callback failed:', err);
+    });
+    handleGithubCallback().catch((err) => {
+      console.error('GitHub auth callback failed:', err);
     });
   }, []);
 

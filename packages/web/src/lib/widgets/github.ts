@@ -8,11 +8,7 @@ import {
   wrapText,
 } from '../widgets';
 import { drawOctocat } from '../widget-icons';
-import { loadConfig } from '../widget-config';
-
-interface GithubConfig {
-  token?: string;
-}
+import { githubFetch, isConnected } from './github-oauth';
 
 interface GithubData {
   totalUnread: number;
@@ -23,10 +19,7 @@ interface GithubData {
     reason: string;
   };
   fetchedAt: number;
-  hasToken: boolean;
 }
-
-const CONFIG_ID = 'github';
 
 interface GithubNotification {
   reason?: string;
@@ -42,21 +35,10 @@ export const GITHUB_WIDGET: Widget<GithubData> = {
   intervalSec: 60 * 5,
 
   async fetchData(): Promise<GithubData> {
-    const cfg = loadConfig<GithubConfig>(CONFIG_ID);
-    const token = cfg?.token;
-    if (!token) {
-      throw new Error('NO TOKEN — ADD IN SETTINGS');
-    }
-    const r = await fetch('https://api.github.com/notifications?all=false&per_page=50', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
-    if (r.status === 401) throw new Error('TOKEN REJECTED — CHECK SETTINGS');
-    if (!r.ok) throw new Error(`GITHUB ${r.status}`);
-    const list = (await r.json()) as GithubNotification[];
+    if (!isConnected()) throw new Error('NOT CONNECTED — SETTINGS');
+    const list = await githubFetch<GithubNotification[]>(
+      '/notifications?all=false&per_page=50'
+    );
     const reasons: Record<string, number> = {};
     let total = 0;
     for (const n of list) {
@@ -78,7 +60,6 @@ export const GITHUB_WIDGET: Widget<GithubData> = {
       totalUnread: total,
       reasons,
       fetchedAt: Date.now(),
-      hasToken: true,
     };
     if (newest !== undefined) result.newest = newest;
     return result;
@@ -103,7 +84,6 @@ export const GITHUB_WIDGET: Widget<GithubData> = {
     ctx.textBaseline = 'top';
     ctx.fillText('NOTIFS', w - 10, 8);
 
-    // Octocat silhouette + unread count, side-by-side
     drawOctocat(ctx, 32, 60, 22, PALETTE.phosphor);
 
     ctx.fillStyle = PALETTE.phosphor;
@@ -116,30 +96,26 @@ export const GITHUB_WIDGET: Widget<GithubData> = {
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText(d.totalUnread === 1 ? 'UNREAD' : 'UNREAD', w - 14, 100);
+    ctx.fillText('UNREAD', w - 14, 100);
 
-    // Reason breakdown
     let y = 124;
     const sorted = Object.entries(d.reasons)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
     ctx.fillStyle = PALETTE.phosphorDim;
     ctx.fillRect(10, y - 4, w - 20, 1);
-    ctx.fillStyle = PALETTE.white;
     ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     for (const [reason, count] of sorted) {
       ctx.fillStyle = PALETTE.dim;
+      ctx.textAlign = 'left';
       ctx.fillText(reason.slice(0, 10), 14, y);
       ctx.fillStyle = PALETTE.phosphor;
       ctx.textAlign = 'right';
       ctx.fillText(String(count), w - 14, y);
-      ctx.textAlign = 'left';
       y += 16;
     }
 
-    // Newest notification at bottom
     if (d.newest) {
       ctx.fillStyle = PALETTE.phosphorDim;
       ctx.fillRect(10, h - 56, w - 20, 1);
@@ -158,6 +134,3 @@ export const GITHUB_WIDGET: Widget<GithubData> = {
     }
   },
 };
-
-export type { GithubConfig };
-export { CONFIG_ID as GITHUB_CONFIG_ID };

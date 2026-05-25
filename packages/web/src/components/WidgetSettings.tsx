@@ -1,89 +1,72 @@
 /**
- * Per-widget configuration panel. Lives inside the Screen view (collapses by
- * default so it doesn't crowd the screen controls).
+ * Per-widget configuration panel. Lives inside the Screen view, collapsible
+ * so it doesn't crowd the screen controls.
  *
- * GitHub Notifications: paste a personal access token (notifications scope).
- * Now Playing (Spotify): paste a Spotify app client_id, then click Connect.
- * Weather: no config needed by default; uses browser geolocation.
+ * Spotify + GitHub use baked-in client IDs (set via VITE_*_CLIENT_ID env vars
+ * at build time). Users only have to click Connect, authorize, done.
+ *
+ * Weather has no per-user config; this panel just exposes the unit toggle.
  */
 
 import { useEffect, useState } from 'react';
 import { Panel } from './Panel';
 import { Button } from './Button';
 import { cn } from '../lib/utils';
-import { loadConfig, saveConfig, clearConfig } from '../lib/widget-config';
-import {
-  GITHUB_CONFIG_ID,
-  type GithubConfig,
-} from '../lib/widgets/github';
+import { loadConfig, saveConfig } from '../lib/widget-config';
 import {
   WEATHER_CONFIG_ID,
   type WeatherConfig,
 } from '../lib/widgets/weather';
 import {
-  getClientId,
-  setClientId,
-  getRedirectUri,
-  startAuth,
-  isConnected,
-  clearTokens,
+  isConnected as spotifyConnected,
+  startAuth as startSpotifyAuth,
+  clearTokens as clearSpotifyTokens,
 } from '../lib/widgets/spotify-oauth';
+import {
+  isConnected as githubConnected,
+  startAuth as startGithubAuth,
+  clearTokens as clearGithubTokens,
+} from '../lib/widgets/github-oauth';
+import { spotifyConfigured, githubConfigured } from '../lib/app-config';
 
 export function WidgetSettings() {
   const [open, setOpen] = useState(false);
-
-  const [ghToken, setGhToken] = useState('');
-  const [ghTokenSaved, setGhTokenSaved] = useState(false);
-
-  const [spotifyClientId, setSpotifyClientId] = useState('');
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [, force] = useState(0);
+  const rerender = () => force((n) => n + 1);
 
   const [weatherUnit, setWeatherUnit] = useState<'F' | 'C'>('F');
   const [weatherLabel, setWeatherLabel] = useState<string>('');
 
-  // Load existing config on mount.
   useEffect(() => {
-    const gh = loadConfig<GithubConfig>(GITHUB_CONFIG_ID);
-    if (gh?.token) {
-      setGhToken(gh.token);
-      setGhTokenSaved(true);
-    }
-    setSpotifyClientId(getClientId() ?? '');
-    setSpotifyConnected(isConnected());
     const w = loadConfig<WeatherConfig>(WEATHER_CONFIG_ID);
     if (w?.unit) setWeatherUnit(w.unit);
     if (w?.label) setWeatherLabel(w.label);
   }, []);
 
-  const saveGhToken = () => {
-    if (!ghToken.trim()) {
-      clearConfig(GITHUB_CONFIG_ID);
-      setGhTokenSaved(false);
-      return;
-    }
-    saveConfig<GithubConfig>(GITHUB_CONFIG_ID, { token: ghToken.trim() });
-    setGhTokenSaved(true);
-  };
-
-  const saveSpotifyClient = () => {
-    if (!spotifyClientId.trim()) return;
-    setClientId(spotifyClientId);
-  };
+  const spotifyOk = spotifyConnected();
+  const githubOk = githubConnected();
+  const spotifyReady = spotifyConfigured();
+  const githubReady = githubConfigured();
 
   const handleConnectSpotify = async () => {
-    saveSpotifyClient();
-    await startAuth();
+    try {
+      await startSpotifyAuth();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Spotify connect failed');
+    }
   };
 
-  const disconnectSpotify = () => {
-    clearTokens();
-    setSpotifyConnected(false);
+  const handleConnectGithub = async () => {
+    try {
+      await startGithubAuth();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'GitHub connect failed');
+    }
   };
 
   const saveWeather = (next: Partial<WeatherConfig>) => {
     const current = loadConfig<WeatherConfig>(WEATHER_CONFIG_ID) ?? {};
-    const updated = { ...current, ...next };
-    saveConfig<WeatherConfig>(WEATHER_CONFIG_ID, updated);
+    saveConfig<WeatherConfig>(WEATHER_CONFIG_ID, { ...current, ...next });
   };
 
   return (
@@ -97,7 +80,7 @@ export function WidgetSettings() {
             WIDGET SETUP
           </div>
           <h3 className="text-base text-text-primary mt-1">
-            Account connections and per-widget config
+            Connect Spotify and GitHub. Tweak weather.
           </h3>
         </div>
         <span className="text-phosphor text-lg font-mono">{open ? '−' : '+'}</span>
@@ -105,39 +88,6 @@ export function WidgetSettings() {
 
       {open && (
         <div className="mt-6 space-y-6">
-          {/* GitHub */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-2xs tracking-widest uppercase text-text-muted">
-                GITHUB NOTIFS
-              </div>
-              <span
-                className={cn(
-                  'text-2xs tracking-widest uppercase',
-                  ghTokenSaved ? 'text-phosphor' : 'text-text-faint'
-                )}
-              >
-                {ghTokenSaved ? 'TOKEN SAVED' : 'NO TOKEN'}
-              </span>
-            </div>
-            <p className="text-sm text-text-secondary mb-3 leading-relaxed">
-              Generate a token at{' '}
-              <span className="text-phosphor font-mono">github.com/settings/tokens</span>{' '}
-              with the <span className="text-phosphor">notifications</span> scope.
-              Token stays in your browser only.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={ghToken}
-                onChange={(e) => setGhToken(e.target.value)}
-                placeholder="ghp_..."
-                className="flex-1 h-10 bg-ink-900 border border-ink-400 px-3 text-text-primary font-mono text-sm outline-none focus:border-phosphor"
-              />
-              <Button onClick={saveGhToken}>SAVE</Button>
-            </div>
-          </div>
-
           {/* Spotify */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -147,46 +97,79 @@ export function WidgetSettings() {
               <span
                 className={cn(
                   'text-2xs tracking-widest uppercase',
-                  spotifyConnected ? 'text-phosphor' : 'text-text-faint'
+                  spotifyOk ? 'text-phosphor' : 'text-text-faint'
                 )}
               >
-                {spotifyConnected ? 'CONNECTED' : 'NOT CONNECTED'}
+                {spotifyOk ? 'CONNECTED' : 'NOT CONNECTED'}
               </span>
             </div>
-            <ol className="text-sm text-text-secondary space-y-1.5 mb-3 leading-relaxed">
-              <li>
-                <span className="text-text-faint">1. </span>
-                Open{' '}
-                <span className="text-phosphor font-mono">developer.spotify.com/dashboard</span>{' '}
-                and create an app.
-              </li>
-              <li>
-                <span className="text-text-faint">2. </span>
-                In the app settings, add this as a Redirect URI (exact, with trailing slash if present):
-                <div className="mt-1.5 px-2 py-1.5 bg-ink-900 border border-ink-400 text-phosphor text-2xs font-mono break-all select-all">
-                  {getRedirectUri()}
-                </div>
-              </li>
-              <li>
-                <span className="text-text-faint">3. </span>
-                Paste the Client ID below, then hit CONNECT.
-              </li>
-            </ol>
+            <p className="text-sm text-text-secondary mb-3 leading-relaxed">
+              Authorizes CONTROL ROOM to read your currently-playing track and
+              album art. Tokens stay in your browser. Click Disconnect to revoke
+              access locally; full revocation lives in your Spotify account.
+            </p>
+            {!spotifyReady && (
+              <div className="mb-3 px-3 py-2 border border-amber/40 text-2xs tracking-widest uppercase text-amber">
+                AWAITING ADMIN CONFIG (VITE_SPOTIFY_CLIENT_ID NOT SET)
+              </div>
+            )}
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={spotifyClientId}
-                onChange={(e) => setSpotifyClientId(e.target.value)}
-                placeholder="32-char client_id"
-                className="flex-1 h-10 bg-ink-900 border border-ink-400 px-3 text-text-primary font-mono text-sm outline-none focus:border-phosphor"
-              />
-              {spotifyConnected ? (
-                <Button variant="danger" onClick={disconnectSpotify}>
-                  DISCONNECT
+              {spotifyOk ? (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    clearSpotifyTokens();
+                    rerender();
+                  }}
+                >
+                  DISCONNECT SPOTIFY
                 </Button>
               ) : (
-                <Button onClick={handleConnectSpotify} disabled={!spotifyClientId.trim()}>
-                  CONNECT
+                <Button onClick={handleConnectSpotify} disabled={!spotifyReady}>
+                  CONNECT SPOTIFY
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* GitHub */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-2xs tracking-widest uppercase text-text-muted">
+                GITHUB NOTIFS
+              </div>
+              <span
+                className={cn(
+                  'text-2xs tracking-widest uppercase',
+                  githubOk ? 'text-phosphor' : 'text-text-faint'
+                )}
+              >
+                {githubOk ? 'CONNECTED' : 'NOT CONNECTED'}
+              </span>
+            </div>
+            <p className="text-sm text-text-secondary mb-3 leading-relaxed">
+              Reads your unread notifications via the GitHub API.
+              Read-only; nothing is written back. Token stays in your browser.
+            </p>
+            {!githubReady && (
+              <div className="mb-3 px-3 py-2 border border-amber/40 text-2xs tracking-widest uppercase text-amber">
+                AWAITING ADMIN CONFIG (VITE_GITHUB_CLIENT_ID NOT SET)
+              </div>
+            )}
+            <div className="flex gap-2">
+              {githubOk ? (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    clearGithubTokens();
+                    rerender();
+                  }}
+                >
+                  DISCONNECT GITHUB
+                </Button>
+              ) : (
+                <Button onClick={handleConnectGithub} disabled={!githubReady}>
+                  CONNECT GITHUB
                 </Button>
               )}
             </div>
