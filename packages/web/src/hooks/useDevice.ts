@@ -63,19 +63,27 @@ export function useDevice(): UseDeviceReturn {
         return;
       }
 
-      // The ND75 exposes multiple HID interfaces. Find the control interface
-      // (vendor usage page 0xFF13) and the screen interface separately.
-      const controlDevice = requested.find((d) =>
-        d.collections.some(
-          (c) => c.usagePage === USB.usagePage && c.usage === USB.usage
-        )
-      ) ?? requested[0];
+      // The ND75 exposes several HID interfaces. Both control AND screen must
+      // be matched on usagePage + usage exactly — picking "any other device"
+      // for the screen ends up grabbing the regular keyboard interface, and
+      // every subsequent feature report there gets rejected.
+      const findByCollection = (page: number, usage: number) =>
+        requested.find((d) =>
+          d.collections.some((c) => c.usagePage === page && c.usage === usage)
+        );
 
-      const screenDevice =
-        requested.find((d) => d !== controlDevice) ?? undefined;
+      const controlDevice = findByCollection(USB.control.usagePage, USB.control.usage);
+      const screenDevice = findByCollection(USB.screen.usagePage, USB.screen.usage);
 
       if (!controlDevice) {
-        throw new Error('No HID interface found on the device.');
+        throw new Error(
+          'ND75 control interface (usagePage 0xFF13) not found. Did the picker include the right device?'
+        );
+      }
+      if (!screenDevice) {
+        console.warn(
+          'ND75 screen interface (usagePage 0xFFA0) not found. Image and widget uploads will be unavailable.'
+        );
       }
 
       const control = new WebHIDAdapter(controlDevice);

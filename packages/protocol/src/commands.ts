@@ -14,10 +14,27 @@ export const PACKET_SIZE = 64;
 export const TERMINATOR_HI = 0xaa;
 export const TERMINATOR_LO = 0x55;
 
-/** USB IDs and HID descriptor for device discovery. */
+/**
+ * USB IDs and HID descriptors for device discovery.
+ *
+ * The ND75 exposes several HID interfaces. Only two matter for us:
+ *
+ *   - control: usagePage 0xFF13 (65299), usage 0x01. Receives all 0x04-prefixed
+ *     commands (keymap, RGB, config, transaction control).
+ *   - screen:  usagePage 0xFFA0 (65384), usage 0x61. Receives raw TFT pixel
+ *     chunks via output reports and acknowledges each chunk via an input
+ *     report so the host knows to send the next one.
+ *
+ * Picking the wrong interface causes silent failures: feature reports get
+ * rejected ("Failed to write the report") and the chunk-pump never receives
+ * acks. The picker MUST match on both usagePage AND usage.
+ */
 export const USB = {
   vendorId: 0x36b5,
   productId: 0x2ba7,
+  control: { usagePage: 0xff13, usage: 0x01 },
+  screen: { usagePage: 0xffa0, usage: 0x61 },
+  // Legacy aliases kept for any callers still using the flat shape.
   usagePage: 0xff13,
   usage: 0x01,
 } as const;
