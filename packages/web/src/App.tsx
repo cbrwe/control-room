@@ -37,6 +37,17 @@ export function App() {
     };
   }, []);
 
+  if (status.state === 'initializing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ink-950">
+        <div className="flex items-center gap-3 text-text-muted">
+          <span className="block w-4 h-4 border-2 border-phosphor border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-medium">Looking for your keyboard…</span>
+        </div>
+      </div>
+    );
+  }
+
   if (status.state !== 'connected' || !device) {
     return <ConnectView status={status} onConnect={connect} />;
   }
