@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  LAYER,
   ND75Device,
   USB,
   type FirmwareInfo,
@@ -147,7 +148,26 @@ export function useDevice(): UseDeviceReturn {
         });
       });
 
+      // Match the bundle's connect-time init sequence. The keyboard's screen
+      // interface won't ACK TFT chunks until the host has read both keymap
+      // layers and the firmware version, with explicit delays between. Skipping
+      // any of these leaves the keyboard in a state where it accepts TFT_BEGIN
+      // but never replies on the screen interface for chunk pumping.
+      try {
+        console.log('[CR] init: reading base layer keymap');
+        await device.readKeymap(LAYER.BASE);
+        await new Promise((r) => setTimeout(r, 100));
+        console.log('[CR] init: reading FN layer keymap');
+        await device.readKeymap(LAYER.FN);
+        await new Promise((r) => setTimeout(r, 100));
+      } catch (initErr) {
+        console.warn('[CR] init keymap reads failed (continuing):', initErr);
+      }
+      console.log('[CR] init: reading firmware version');
       const firmware = await device.getFirmwareVersion();
+      await new Promise((r) => setTimeout(r, 500));
+      console.log('[CR] init complete, firmware=', firmware.version);
+
       deviceRef.current = device;
       setStatus({ state: 'connected', firmware });
     } catch (err) {
