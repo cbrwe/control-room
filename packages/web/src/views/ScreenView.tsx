@@ -9,16 +9,13 @@ import { WIDGETS, type Widget } from '../lib/widgets';
 import { useLcdWidget } from '../hooks/useLcdWidget';
 import { WidgetSettings } from '../components/WidgetSettings';
 import {
-  isConnected as spotifyConnected,
-  startAuth as startSpotifyAuth,
-  clearTokens as clearSpotifyTokens,
-} from '../lib/widgets/spotify-oauth';
-import {
-  isConnected as githubConnected,
-  startAuth as startGithubAuth,
-  clearTokens as clearGithubTokens,
-} from '../lib/widgets/github-oauth';
-import { spotifyConfigured, githubConfigured } from '../lib/app-config';
+  subscribeTimer,
+  getTimerSnapshot,
+  setTimerDuration,
+  startTimer,
+  pauseTimer,
+  resetTimer,
+} from '../lib/widgets/timer';
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -30,11 +27,6 @@ interface UploadState {
   progress?: number;
 }
 
-const WIDGETS_NEEDING_AUTH: Record<string, 'spotify' | 'github'> = {
-  'now-playing': 'spotify',
-  github: 'github',
-};
-
 export function ScreenView({ device }: ScreenViewProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' });
@@ -44,7 +36,6 @@ export function ScreenView({ device }: ScreenViewProps) {
   const [widgetId, setWidgetId] = useState<string | null>('clock');
   const [widgetActive, setWidgetActive] = useState(false);
   const [customText, setCustomText] = useState('HELLO');
-  const [authTick, setAuthTick] = useState(0);
 
   const widget: Widget | null = widgetId
     ? WIDGETS.find((w) => w.id === widgetId) ?? null
@@ -59,45 +50,6 @@ export function ScreenView({ device }: ScreenViewProps) {
     widget,
     active: widgetActive,
   });
-
-  useEffect(() => {
-    const onFocus = () => setAuthTick((n) => n + 1);
-    const onStorage = () => setAuthTick((n) => n + 1);
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('storage', onStorage);
-    };
-  }, []);
-
-  const spotifyOk = spotifyConnected();
-  const githubOk = githubConnected();
-  const spotifyReady = spotifyConfigured();
-  const githubReady = githubConfigured();
-
-  const handleWidgetSelect = async (id: string) => {
-    const authNeeded = WIDGETS_NEEDING_AUTH[id];
-    if (authNeeded === 'spotify' && !spotifyOk && spotifyReady) {
-      try {
-        await startSpotifyAuth();
-        return;
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'Spotify connect failed');
-        return;
-      }
-    }
-    if (authNeeded === 'github' && !githubOk && githubReady) {
-      try {
-        await startGithubAuth();
-        return;
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'GitHub connect failed');
-        return;
-      }
-    }
-    setWidgetId(id);
-  };
 
   const handleFile = async (file: File) => {
     setUpload({ status: 'processing' });
@@ -145,11 +97,11 @@ export function ScreenView({ device }: ScreenViewProps) {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto" data-auth-tick={authTick}>
+    <div className="p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
       <SectionHeader
         index="04"
         label="SCREEN"
-        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display. Pick a widget to push, or upload a still image. Connect Spotify and GitHub right where you select them.`}
+        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display. Pick a widget to push, or upload a still image or GIF frame.`}
         action={
           <StatusPill
             variant={
@@ -266,33 +218,17 @@ export function ScreenView({ device }: ScreenViewProps) {
             </div>
 
             <div className="mt-5 space-y-2">
-              {WIDGETS.map((w) => {
-                const active = w.id === widgetId;
-                const needs = WIDGETS_NEEDING_AUTH[w.id];
-                const isConnected =
-                  needs === 'spotify' ? spotifyOk : needs === 'github' ? githubOk : true;
-                const isConfigured =
-                  needs === 'spotify' ? spotifyReady : needs === 'github' ? githubReady : true;
-                const rowProps: WidgetRowProps = {
-                  widget: w,
-                  active,
-                  connected: isConnected,
-                  configured: isConfigured,
-                  onSelect: () => handleWidgetSelect(w.id),
-                  onConnect: async () => {
-                    if (needs === 'spotify') await startSpotifyAuth();
-                    if (needs === 'github') await startGithubAuth();
-                  },
-                  onDisconnect: () => {
-                    if (needs === 'spotify') clearSpotifyTokens();
-                    if (needs === 'github') clearGithubTokens();
-                    setAuthTick((n) => n + 1);
-                  },
-                };
-                if (needs) rowProps.needsAuth = needs;
-                return <WidgetRow key={w.id} {...rowProps} />;
-              })}
+              {WIDGETS.map((w) => (
+                <WidgetRow
+                  key={w.id}
+                  widget={w}
+                  active={w.id === widgetId}
+                  onSelect={() => setWidgetId(w.id)}
+                />
+              ))}
             </div>
+
+            {widgetId === 'timer' && <TimerControls />}
 
             {widgetId === 'text' && (
               <div className="mt-5">
@@ -384,27 +320,10 @@ export function ScreenView({ device }: ScreenViewProps) {
 interface WidgetRowProps {
   widget: Widget;
   active: boolean;
-  needsAuth?: 'spotify' | 'github';
-  connected: boolean;
-  configured: boolean;
   onSelect: () => void;
-  onConnect: () => Promise<void>;
-  onDisconnect: () => void;
 }
 
-function WidgetRow({
-  widget,
-  active,
-  needsAuth,
-  connected,
-  configured,
-  onSelect,
-  onConnect,
-  onDisconnect,
-}: WidgetRowProps) {
-  const providerLabel =
-    needsAuth === 'spotify' ? 'Spotify' : needsAuth === 'github' ? 'GitHub' : null;
-
+function WidgetRow({ widget, active, onSelect }: WidgetRowProps) {
   return (
     <div
       className={cn(
@@ -448,56 +367,102 @@ function WidgetRow({
           </div>
           <div className="text-xs text-text-muted mt-0.5">{widget.description}</div>
         </div>
-        {needsAuth && (
-          <span
-            className={cn(
-              'text-xs font-medium px-2 py-0.5 rounded-full shrink-0',
-              connected
-                ? 'text-phosphor-dim bg-phosphor/10'
-                : 'text-text-muted bg-ink-800'
-            )}
-          >
-            {connected ? 'Connected' : 'Not connected'}
-          </span>
-        )}
       </button>
+    </div>
+  );
+}
 
-      {needsAuth && (
-        <div className="px-4 pb-3 pt-1 flex flex-wrap items-center gap-2 border-t border-ink-600">
-          {!configured ? (
-            <span className="text-xs text-amber font-medium">
-              Awaiting admin config · {needsAuth === 'spotify' ? 'VITE_SPOTIFY_CLIENT_ID' : 'VITE_GITHUB_CLIENT_ID'} missing
-            </span>
-          ) : connected ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={onDisconnect}>
-                Disconnect {providerLabel}
-              </Button>
-              <span className="text-xs text-text-faint">
-                Tokens stay in your browser.
-              </span>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onConnect().catch((err) => {
-                    alert(err instanceof Error ? err.message : 'Connect failed');
-                  });
-                }}
-              >
-                Connect {providerLabel}
-              </Button>
-              <span className="text-xs text-text-faint">
-                One click. You'll authorize on {providerLabel?.toLowerCase()}.com, then bounce back.
-              </span>
-            </>
+function TimerControls() {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    const unsubscribe = subscribeTimer(bump);
+    const id = window.setInterval(bump, 250);
+    return () => {
+      unsubscribe();
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const snap = getTimerSnapshot();
+  const [customMin, setCustomMin] = useState('');
+
+  const totalSec = Math.ceil(snap.remainingMs / 1000);
+  const mm = Math.floor(totalSec / 60).toString().padStart(2, '0');
+  const ss = (totalSec % 60).toString().padStart(2, '0');
+
+  const applyCustom = () => {
+    const min = parseInt(customMin, 10);
+    if (!Number.isNaN(min) && min > 0) {
+      setTimerDuration(min * 60_000);
+      setCustomMin('');
+    }
+  };
+
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-text-muted">
+          {snap.done ? 'Done' : snap.running ? 'Running' : 'Paused'}
+        </span>
+        <span
+          className={cn(
+            'font-mono text-2xl font-semibold tabular-nums',
+            snap.done ? 'text-danger' : 'text-text-primary'
           )}
-        </div>
-      )}
+        >
+          {mm}:{ss}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {[5, 10, 25].map((m) => (
+          <button
+            key={m}
+            onClick={() => setTimerDuration(m * 60_000)}
+            className="h-8 px-3 text-xs font-medium rounded-full bg-ink-800 text-text-muted hover:text-text-primary transition-colors"
+          >
+            {m}m
+          </button>
+        ))}
+        <input
+          type="number"
+          min="1"
+          inputMode="numeric"
+          placeholder="min"
+          value={customMin}
+          onChange={(e) => setCustomMin(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') applyCustom();
+          }}
+          className="h-8 w-20 bg-white border border-ink-500 rounded-md px-2 text-sm text-text-primary outline-none focus:border-phosphor focus:shadow-ring"
+        />
+        <Button variant="ghost" size="sm" onClick={applyCustom} disabled={!customMin}>
+          Set
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {snap.running ? (
+          <Button variant="secondary" size="sm" onClick={pauseTimer}>
+            Pause
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={startTimer}
+            disabled={snap.remainingMs <= 0}
+          >
+            Start
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={resetTimer}>
+          Reset
+        </Button>
+        <span className="text-xs text-text-faint">Go live to tick it on the LCD.</span>
+      </div>
     </div>
   );
 }

@@ -133,9 +133,8 @@ export function useDevice(): UseDeviceReturn {
 
   // Auto-reconnect on mount: if the browser has previously authorized ND75
   // devices, open them silently (no requestDevice() so no user gesture
-  // needed). This makes OAuth bounce-back seamless — Spotify/GitHub redirect
-  // unloads the page, and when we land back here we pick up where we left off
-  // instead of dumping the user on the Connect screen.
+  // needed). A page refresh lands you straight back on the app instead of the
+  // Connect screen.
   useEffect(() => {
     let cancelled = false;
     if (!isWebHIDSupported()) return;

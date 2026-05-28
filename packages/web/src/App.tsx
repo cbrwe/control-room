@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useDevice } from './hooks/useDevice';
 import { ConnectView } from './views/ConnectView';
 import { AppHeader, type Tab } from './components/AppHeader';
@@ -7,35 +7,10 @@ import { LightingView } from './views/LightingView';
 import { QuickActionsView } from './views/QuickActionsView';
 import { ScreenView } from './views/ScreenView';
 import { SettingsView } from './views/SettingsView';
-import { handleAuthCallback as handleSpotifyCallback } from './lib/widgets/spotify-oauth';
-import { handleAuthCallback as handleGithubCallback } from './lib/widgets/github-oauth';
 
 export function App() {
   const { status, device, connect, disconnect } = useDevice();
   const [tab, setTab] = useState<Tab>('lighting');
-  const [, setAuthTick] = useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-    const bump = () => mounted && setAuthTick((n) => n + 1);
-    handleSpotifyCallback()
-      .then((ok) => {
-        if (ok) bump();
-      })
-      .catch((err) => {
-        console.error('Spotify auth callback failed:', err);
-      });
-    handleGithubCallback()
-      .then((ok) => {
-        if (ok) bump();
-      })
-      .catch((err) => {
-        console.error('GitHub auth callback failed:', err);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   if (status.state === 'initializing') {
     return (

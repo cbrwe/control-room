@@ -1,6 +1,5 @@
 /**
- * Weather widget settings. Spotify and GitHub auth live inline on each widget
- * card in ScreenView; this panel is now just unit toggles for Weather.
+ * Weather widget settings: unit toggle (F/C) and the resolved location label.
  */
 
 import { useEffect, useState } from 'react';

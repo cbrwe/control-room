@@ -5,9 +5,9 @@
  *
  * Widget framework supports two flavors:
  *
- *   STATIC  — pure render, no external data (Clock, Static Text)
+ *   STATIC  — pure render, no external data (Clock, Static Text, Timer)
  *   ASYNC   — has fetchData() called on interval, render gets data + status
- *             (Weather, GitHub, Now Playing)
+ *             (Weather)
  *
  * Adding a widget: implement Widget<T>, register it in WIDGETS below. The
  * runner handles canvas allocation, intervals, data fetching, and encoding.
@@ -15,9 +15,8 @@
 
 import { SCREEN } from '@control-room/protocol';
 import { CLOCK_WIDGET, TEXT_WIDGET } from './widgets/clock-text';
+import { TIMER_WIDGET } from './widgets/timer';
 import { WEATHER_WIDGET } from './widgets/weather';
-import { GITHUB_WIDGET } from './widgets/github';
-import { NOW_PLAYING_WIDGET } from './widgets/now-playing';
 
 /** State passed to render() so widgets can adapt to loading/error conditions. */
 export type WidgetDataState<T> =
@@ -47,10 +46,9 @@ export interface Widget<T = unknown> {
 
 export const WIDGETS: readonly Widget[] = [
   CLOCK_WIDGET,
+  TIMER_WIDGET,
   TEXT_WIDGET,
   WEATHER_WIDGET,
-  GITHUB_WIDGET,
-  NOW_PLAYING_WIDGET,
 ];
 
 export const LCD_WIDTH = SCREEN.width;
