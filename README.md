@@ -2,7 +2,7 @@
 
 A control app for the Chilkey ND75 mechanical keyboard. Mac, Windows, Web.
 
-CONTROL ROOM replaces Chilkey's broken official "web driver" with a proper cross-platform tool. It remaps keys, controls RGB, uploads images to the LCD, and turns the screen into a live widget surface for clock, countdown timer, weather, and custom text.
+CONTROL ROOM replaces Chilkey's broken official "web driver" with a proper cross-platform tool. It remaps keys, controls RGB, uploads images to the LCD, and turns the screen into a live widget surface for clock, weather, and custom text.
 
 ## Why
 

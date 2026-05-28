@@ -5,7 +5,7 @@
  *
  * Widget framework supports two flavors:
  *
- *   STATIC  — pure render, no external data (Clock, Static Text, Timer)
+ *   STATIC  — pure render, no external data (Clock, Static Text)
  *   ASYNC   — has fetchData() called on interval, render gets data + status
  *             (Weather)
  *
@@ -15,7 +15,6 @@
 
 import { SCREEN } from '@control-room/protocol';
 import { CLOCK_WIDGET, TEXT_WIDGET } from './widgets/clock-text';
-import { TIMER_WIDGET } from './widgets/timer';
 import { WEATHER_WIDGET } from './widgets/weather';
 
 /** State passed to render() so widgets can adapt to loading/error conditions. */
@@ -46,7 +45,6 @@ export interface Widget<T = unknown> {
 
 export const WIDGETS: readonly Widget[] = [
   CLOCK_WIDGET,
-  TIMER_WIDGET,
   TEXT_WIDGET,
   WEATHER_WIDGET,
 ];

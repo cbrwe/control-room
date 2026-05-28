@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { type ND75Device, SCREEN, FRAME_BYTES, rgbaToRgb565 } from '@control-room/protocol';
 import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
@@ -8,14 +8,6 @@ import { formatBytes, cn } from '../lib/utils';
 import { WIDGETS, type Widget } from '../lib/widgets';
 import { useLcdWidget } from '../hooks/useLcdWidget';
 import { WidgetSettings } from '../components/WidgetSettings';
-import {
-  subscribeTimer,
-  getTimerSnapshot,
-  setTimerDuration,
-  startTimer,
-  pauseTimer,
-  resetTimer,
-} from '../lib/widgets/timer';
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -228,8 +220,6 @@ export function ScreenView({ device }: ScreenViewProps) {
               ))}
             </div>
 
-            {widgetId === 'timer' && <TimerControls />}
-
             {widgetId === 'text' && (
               <div className="mt-5">
                 <label className="text-xs font-medium text-text-muted">
@@ -368,101 +358,6 @@ function WidgetRow({ widget, active, onSelect }: WidgetRowProps) {
           <div className="text-xs text-text-muted mt-0.5">{widget.description}</div>
         </div>
       </button>
-    </div>
-  );
-}
-
-function TimerControls() {
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    const bump = () => setTick((n) => n + 1);
-    const unsubscribe = subscribeTimer(bump);
-    const id = window.setInterval(bump, 250);
-    return () => {
-      unsubscribe();
-      window.clearInterval(id);
-    };
-  }, []);
-
-  const snap = getTimerSnapshot();
-  const [customMin, setCustomMin] = useState('');
-
-  const totalSec = Math.ceil(snap.remainingMs / 1000);
-  const mm = Math.floor(totalSec / 60).toString().padStart(2, '0');
-  const ss = (totalSec % 60).toString().padStart(2, '0');
-
-  const applyCustom = () => {
-    const min = parseInt(customMin, 10);
-    if (!Number.isNaN(min) && min > 0) {
-      setTimerDuration(min * 60_000);
-      setCustomMin('');
-    }
-  };
-
-  return (
-    <div className="mt-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-text-muted">
-          {snap.done ? 'Done' : snap.running ? 'Running' : 'Paused'}
-        </span>
-        <span
-          className={cn(
-            'font-mono text-2xl font-semibold tabular-nums',
-            snap.done ? 'text-danger' : 'text-text-primary'
-          )}
-        >
-          {mm}:{ss}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {[5, 10, 25].map((m) => (
-          <button
-            key={m}
-            onClick={() => setTimerDuration(m * 60_000)}
-            className="h-8 px-3 text-xs font-medium rounded-full bg-ink-800 text-text-muted hover:text-text-primary transition-colors"
-          >
-            {m}m
-          </button>
-        ))}
-        <input
-          type="number"
-          min="1"
-          inputMode="numeric"
-          placeholder="min"
-          value={customMin}
-          onChange={(e) => setCustomMin(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') applyCustom();
-          }}
-          className="h-8 w-20 bg-white border border-ink-500 rounded-md px-2 text-sm text-text-primary outline-none focus:border-phosphor focus:shadow-ring"
-        />
-        <Button variant="ghost" size="sm" onClick={applyCustom} disabled={!customMin}>
-          Set
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {snap.running ? (
-          <Button variant="secondary" size="sm" onClick={pauseTimer}>
-            Pause
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={startTimer}
-            disabled={snap.remainingMs <= 0}
-          >
-            Start
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={resetTimer}>
-          Reset
-        </Button>
-        <span className="text-xs text-text-faint">Go live to tick it on the LCD.</span>
-      </div>
     </div>
   );
 }
