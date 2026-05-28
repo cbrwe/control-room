@@ -14,6 +14,7 @@
  */
 
 import { SCREEN } from '@control-room/protocol';
+import { getActiveColors } from './active-theme';
 import { CLOCK_WIDGET, TEXT_WIDGET } from './widgets/clock-text';
 import { WEATHER_WIDGET } from './widgets/weather';
 
@@ -63,10 +64,22 @@ export const PALETTE = {
   danger: '#ff4444',
 } as const;
 
-/** Fill the canvas with ink black. Every widget should call this first. */
+/** Fill the canvas with the active theme's background. Call this first. */
 export function clearFrame(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  ctx.fillStyle = PALETTE.ink;
+  ctx.fillStyle = getActiveColors().bg;
   ctx.fillRect(0, 0, w, h);
+}
+
+/** Paint a callback at reduced opacity, then restore. Used for dimmed text. */
+export function withAlpha(
+  ctx: CanvasRenderingContext2D,
+  alpha: number,
+  paint: () => void
+): void {
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = alpha;
+  paint();
+  ctx.globalAlpha = prev;
 }
 
 /** Draw a small phosphor tag (used as a header label across widgets). */

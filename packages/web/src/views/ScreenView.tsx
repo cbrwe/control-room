@@ -8,6 +8,15 @@ import { formatBytes, cn } from '../lib/utils';
 import { WIDGETS, type Widget } from '../lib/widgets';
 import { useLcdWidget } from '../hooks/useLcdWidget';
 import { WidgetSettings } from '../components/WidgetSettings';
+import { ThemePicker } from '../components/ThemePicker';
+import { findTheme, DEFAULT_THEME_ID } from '../lib/widget-themes';
+import { loadConfig, saveConfig } from '../lib/widget-config';
+
+const APPEARANCE_ID = 'appearance';
+interface Appearance {
+  themeId: string;
+  inverted: boolean;
+}
 
 interface ScreenViewProps {
   device: ND75Device;
@@ -93,6 +102,26 @@ export function ScreenView({ device }: ScreenViewProps) {
   const [widgetActive, setWidgetActive] = useState(false);
   const [customText, setCustomText] = useState('HELLO');
 
+  const [themeId, setThemeId] = useState<string>(
+    () => loadConfig<Appearance>(APPEARANCE_ID)?.themeId ?? DEFAULT_THEME_ID
+  );
+  const [inverted, setInverted] = useState<boolean>(
+    () => loadConfig<Appearance>(APPEARANCE_ID)?.inverted ?? false
+  );
+  const theme = findTheme(themeId);
+
+  const selectTheme = (id: string) => {
+    setThemeId(id);
+    saveConfig<Appearance>(APPEARANCE_ID, { themeId: id, inverted });
+  };
+  const toggleInvert = () => {
+    setInverted((prev) => {
+      const next = !prev;
+      saveConfig<Appearance>(APPEARANCE_ID, { themeId, inverted: next });
+      return next;
+    });
+  };
+
   const widget: Widget | null = widgetId
     ? WIDGETS.find((w) => w.id === widgetId) ?? null
     : null;
@@ -105,6 +134,8 @@ export function ScreenView({ device }: ScreenViewProps) {
     device,
     widget,
     active: widgetActive,
+    theme,
+    inverted,
   });
 
   const handleFile = async (file: File) => {
@@ -341,6 +372,15 @@ export function ScreenView({ device }: ScreenViewProps) {
               </p>
             )}
           </Panel>
+
+          {widget && (
+            <ThemePicker
+              value={themeId}
+              inverted={inverted}
+              onSelect={selectTheme}
+              onToggleInvert={toggleInvert}
+            />
+          )}
 
           <Panel padding="lg">
             <h3 className="text-base font-semibold text-text-primary">Upload an image or GIF</h3>

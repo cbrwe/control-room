@@ -1,11 +1,12 @@
 import type { Widget } from '../widgets';
 import {
-  PALETTE,
   clearFrame,
   drawErrorState,
   drawLoadingState,
   drawTag,
+  withAlpha,
 } from '../widgets';
+import { getActiveColors } from '../active-theme';
 import {
   drawBolt,
   drawCloud,
@@ -161,18 +162,19 @@ export const WEATHER_WIDGET: Widget<WeatherData> = {
     }
     const d = state.data;
     clearFrame(ctx, w, h);
+    const c = getActiveColors();
 
-    drawTag(ctx, 'WEATHER', 10, 8);
-    ctx.fillStyle = PALETTE.dim;
+    drawTag(ctx, 'WEATHER', 10, 8, c.fg);
+    ctx.fillStyle = c.accent;
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText(d.label.slice(0, 14), w - 10, 8);
+    withAlpha(ctx, 0.55, () => ctx.fillText(d.label.slice(0, 14), w - 10, 8));
 
     const iconCx = w / 2;
     const iconCy = 64;
     const iconR = 26;
-    const iconColor = PALETTE.phosphor;
+    const iconColor = c.fg;
     const code = d.conditionCode;
     if (code === 0) {
       drawSun(ctx, iconCx, iconCy, iconR, iconColor);
@@ -189,29 +191,31 @@ export const WEATHER_WIDGET: Widget<WeatherData> = {
     }
 
     // Big temperature with unit suffix
-    ctx.fillStyle = PALETTE.phosphor;
+    ctx.fillStyle = c.fg;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 60px monospace';
     ctx.fillText(`${d.tempF}°`, w / 2, 140);
 
     // Condition word
-    ctx.fillStyle = PALETTE.white;
+    ctx.fillStyle = c.accent;
     ctx.font = 'bold 14px monospace';
     ctx.fillText(d.conditionLabel, w / 2, 178);
 
     // High / low strip
-    ctx.fillStyle = PALETTE.phosphorDim;
-    ctx.fillRect(10, 196, w - 20, 1);
-    ctx.fillStyle = PALETTE.dim;
+    ctx.fillStyle = c.fg;
+    withAlpha(ctx, 0.5, () => ctx.fillRect(10, 196, w - 20, 1));
+    ctx.fillStyle = c.accent;
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`H ${d.high}°`, 14, 206);
-    ctx.textAlign = 'right';
-    ctx.fillText(`L ${d.low}°`, w - 14, 206);
-    ctx.textAlign = 'center';
-    ctx.fillText(`FEELS ${d.feelsLikeF}°`, w / 2, 222);
+    withAlpha(ctx, 0.6, () => {
+      ctx.fillText(`H ${d.high}°`, 14, 206);
+      ctx.textAlign = 'right';
+      ctx.fillText(`L ${d.low}°`, w - 14, 206);
+      ctx.textAlign = 'center';
+      ctx.fillText(`FEELS ${d.feelsLikeF}°`, w / 2, 222);
+    });
   },
 };
 

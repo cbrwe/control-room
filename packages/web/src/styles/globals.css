@@ -53,3 +53,13 @@ body {
 .font-mono {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace !important;
 }
+
+/* Animated theme swatch: cycle the ink color so the picker hints at motion. */
+@keyframes cr-hue {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+.cr-hue {
+  animation: cr-hue 3.5s linear infinite;
+}
