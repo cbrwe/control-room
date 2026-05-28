@@ -305,30 +305,44 @@ export class ND75Device {
       throw new Error('TFT_BEGIN was not acknowledged.');
     }
 
-    // Drive the chunk pump from the screen interface's input reports.
+    // Drive the chunk pump from the screen interface's input reports. The
+    // timeout resets on every ack, so it caps inactivity rather than total
+    // duration: a large multi-frame GIF can stream for over a minute at the
+    // keyboard's pace and still complete, while a genuine stall fails fast.
+    const STALL_MS = 5000;
     let chunkIndex = 0;
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`TFT upload timed out at chunk ${chunkIndex}/${chunks.length}.`));
-      }, 30000);
+      let timer: ReturnType<typeof setTimeout>;
+      const arm = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `TFT upload stalled at chunk ${chunkIndex}/${chunks.length} (no ack for ${STALL_MS}ms).`
+            )
+          );
+        }, STALL_MS);
+      };
 
       screen.onInputReport(() => {
         if (chunkIndex >= chunks.length - 1) {
-          clearTimeout(timeout);
+          clearTimeout(timer);
           resolve();
           return;
         }
         chunkIndex++;
+        arm();
         screen.sendOutputReport(0, chunks[chunkIndex]!).catch((err) => {
-          clearTimeout(timeout);
+          clearTimeout(timer);
           reject(err);
         });
       });
 
       // Kick off the pump with the first chunk; the keyboard's reply on
       // the screen interface triggers each subsequent send.
+      arm();
       screen.sendOutputReport(0, chunks[0]!).catch((err) => {
-        clearTimeout(timeout);
+        clearTimeout(timer);
         reject(err);
       });
     });

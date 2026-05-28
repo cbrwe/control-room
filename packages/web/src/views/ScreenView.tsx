@@ -55,6 +55,7 @@ async function decodeAnimatedFrames(
   onProgress?: (frame: number, total: number) => void
 ): Promise<{ pixels: Uint8Array; delaysMs: number[] }> {
   const decoder = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type });
+  await decoder.tracks.ready;
   await decoder.completed;
   const track = decoder.tracks.selectedTrack;
   const total = Math.min(track?.frameCount ?? 1, MAX_GIF_FRAMES);
