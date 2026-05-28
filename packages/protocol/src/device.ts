@@ -262,8 +262,14 @@ export class ND75Device {
   // -------------------------------------------------------------------------
 
   /**
-   * Upload an image (or a frame of a GIF) to the LCD screen. Pixel data must
-   * be in the format the firmware expects, typically RGB565 at 135x240.
+   * Upload an image to the LCD screen. Pixel data must be in the format the
+   * firmware expects, typically RGB565 at 135x240.
+   *
+   * For a still image, pass a single frame's pixels and leave frameDelays at
+   * the default. For an animated GIF, concatenate every frame's RGB565 pixels
+   * (each FRAME_BYTES long, in order) and pass one delay-in-ms per frame; the
+   * firmware loops the frames using those delays. Chilkey caps GIFs at 60
+   * frames and each delay is a single byte (0-255 ms).
    *
    * Flow control matches the bundle's set0472: we send the FIRST chunk after
    * TFT_BEGIN, then the keyboard sends an input report on the screen interface
@@ -273,7 +279,10 @@ export class ND75Device {
    *
    * If only a single HID interface was provided, throws.
    */
-  async uploadImage(pixelData: Uint8Array): Promise<void> {
+  async uploadImage(
+    pixelData: Uint8Array,
+    frameDelays: readonly number[] = [0]
+  ): Promise<void> {
     if (!this.screen) {
       throw new Error(
         'Screen interface not provided to ND75Device. Pass a second HIDAdapter to the constructor to enable image upload.'
@@ -281,7 +290,7 @@ export class ND75Device {
     }
 
     const screen = this.screen;
-    const chunks = chunkImage(pixelData);
+    const chunks = chunkImage(pixelData, frameDelays);
     if (chunks.length === 0) return;
 
     await this.beginTransaction();

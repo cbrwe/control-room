@@ -19,6 +19,69 @@ interface UploadState {
   progress?: number;
 }
 
+/** Chilkey caps GIFs at 60 frames; extra frames are dropped. */
+const MAX_GIF_FRAMES = 60;
+
+/** Cover-fit a drawable onto the 135x240 frame, centered, black letterbox. */
+function coverFit(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  srcW: number,
+  srcH: number
+): void {
+  const scale = Math.max(SCREEN.width / srcW, SCREEN.height / srcH);
+  const dw = srcW * scale;
+  const dh = srcH * scale;
+  const dx = (SCREEN.width - dw) / 2;
+  const dy = (SCREEN.height - dh) / 2;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, SCREEN.width, SCREEN.height);
+  ctx.drawImage(source, dx, dy, dw, dh);
+}
+
+function frameToRgb565(ctx: CanvasRenderingContext2D): Uint8Array {
+  const imageData = ctx.getImageData(0, 0, SCREEN.width, SCREEN.height);
+  return rgbaToRgb565(new Uint8Array(imageData.data.buffer));
+}
+
+/**
+ * Decode an animated GIF into concatenated RGB565 frames + per-frame delays
+ * using the browser's WebCodecs ImageDecoder (Chrome-only, same as WebHID).
+ * Each frame is cover-fitted to the LCD; delays are clamped to a single byte.
+ */
+async function decodeAnimatedFrames(
+  file: File,
+  ctx: CanvasRenderingContext2D,
+  onProgress?: (frame: number, total: number) => void
+): Promise<{ pixels: Uint8Array; delaysMs: number[] }> {
+  const decoder = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type });
+  await decoder.completed;
+  const track = decoder.tracks.selectedTrack;
+  const total = Math.min(track?.frameCount ?? 1, MAX_GIF_FRAMES);
+
+  const frames: Uint8Array[] = [];
+  const delaysMs: number[] = [];
+  for (let i = 0; i < total; i++) {
+    const { image } = await decoder.decode({ frameIndex: i });
+    coverFit(ctx, image, image.displayWidth, image.displayHeight);
+    frames.push(frameToRgb565(ctx));
+    const durationUs = image.duration ?? 0;
+    delaysMs.push(Math.min(255, Math.max(0, Math.round(durationUs / 1000))));
+    image.close();
+    onProgress?.(i + 1, total);
+  }
+  decoder.close();
+
+  const totalBytes = frames.reduce((n, f) => n + f.length, 0);
+  const pixels = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const f of frames) {
+    pixels.set(f, offset);
+    offset += f.length;
+  }
+  return { pixels, delaysMs };
+}
+
 export function ScreenView({ device }: ScreenViewProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' });
@@ -48,37 +111,47 @@ export function ScreenView({ device }: ScreenViewProps) {
     try {
       const url = URL.createObjectURL(file);
       setPreview(url);
-      const img = new Image();
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = url;
-      });
 
       const canvas = canvasRef.current!;
       canvas.width = SCREEN.width;
       canvas.height = SCREEN.height;
       const ctx = canvas.getContext('2d')!;
-      const scale = Math.max(SCREEN.width / img.width, SCREEN.height / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
-      const dx = (SCREEN.width - dw) / 2;
-      const dy = (SCREEN.height - dh) / 2;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, SCREEN.width, SCREEN.height);
-      ctx.drawImage(img, dx, dy, dw, dh);
 
-      const imageData = ctx.getImageData(0, 0, SCREEN.width, SCREEN.height);
-      const rgb565 = rgbaToRgb565(new Uint8Array(imageData.data.buffer));
+      const animated =
+        file.type === 'image/gif' &&
+        typeof ImageDecoder !== 'undefined' &&
+        (await ImageDecoder.isTypeSupported('image/gif'));
+
+      let pixels: Uint8Array;
+      let delaysMs: number[];
+
+      if (animated) {
+        const decoded = await decodeAnimatedFrames(file, ctx, (i, total) =>
+          setUpload({ status: 'processing', message: `Decoding frame ${i}/${total}` })
+        );
+        pixels = decoded.pixels;
+        delaysMs = decoded.delaysMs;
+      } else {
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = url;
+        });
+        coverFit(ctx, img, img.naturalWidth || img.width, img.naturalHeight || img.height);
+        pixels = frameToRgb565(ctx);
+        delaysMs = [0];
+      }
 
       setUpload({ status: 'uploading' });
       const start = performance.now();
-      await device.uploadImage(rgb565);
+      await device.uploadImage(pixels, delaysMs);
       const elapsed = Math.round(performance.now() - start);
 
+      const frameNote = delaysMs.length > 1 ? `${delaysMs.length} frames · ` : '';
       setUpload({
         status: 'ok',
-        message: `Uploaded ${formatBytes(rgb565.length)} in ${elapsed}ms`,
+        message: `Uploaded ${frameNote}${formatBytes(pixels.length)} in ${elapsed}ms`,
       });
     } catch (err) {
       setUpload({
@@ -93,7 +166,7 @@ export function ScreenView({ device }: ScreenViewProps) {
       <SectionHeader
         index="04"
         label="SCREEN"
-        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display. Pick a widget to push, or upload a still image or GIF frame.`}
+        subtitle={`The ND75 has a ${SCREEN.width}×${SCREEN.height} TFT display. Pick a widget to push, or upload a still image or an animated GIF.`}
         action={
           <StatusPill
             variant={
@@ -269,9 +342,10 @@ export function ScreenView({ device }: ScreenViewProps) {
           </Panel>
 
           <Panel padding="lg">
-            <h3 className="text-base font-semibold text-text-primary">Upload an image</h3>
+            <h3 className="text-base font-semibold text-text-primary">Upload an image or GIF</h3>
             <p className="text-sm text-text-secondary mt-0.5">
-              Cover-fitted to {SCREEN.width}×{SCREEN.height} and converted to RGB565.
+              Cover-fitted to {SCREEN.width}×{SCREEN.height}, converted to RGB565. Animated GIFs
+              play on the LCD (up to {MAX_GIF_FRAMES} frames).
             </p>
             <input
               type="file"
