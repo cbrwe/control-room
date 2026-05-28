@@ -5,13 +5,13 @@
  * on unmount or when the widget is swapped out.
  *
  * Theming: the runner sets the active theme colors before every render call.
- * Animated themes get a smooth preview loop (requestAnimationFrame) and, when
- * pushed, are streamed to the LCD as a looping multi-frame animation reusing
- * the firmware's GIF playback path.
+ * Animated themes get a smooth preview loop (requestAnimationFrame) in the
+ * browser; the keyboard receives a single frame at the current color, since a
+ * long multi-frame HID stream stalls the TFT upload mid-transfer.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type ND75Device, FRAME_BYTES, rgbaToRgb565 } from '@control-room/protocol';
+import { type ND75Device, rgbaToRgb565 } from '@control-room/protocol';
 import {
   LCD_HEIGHT,
   LCD_WIDTH,
@@ -71,15 +71,6 @@ export function useLcdWidget({ device, widget, active, theme, inverted }: UseLcd
     return (widget.render as Widget['render'])(ctx, LCD_WIDTH, LCD_HEIGHT, dataStateRef.current);
   }
 
-  /** Render the widget once at the given phase and return its RGB565 bytes. */
-  function renderFrame(ctx: CanvasRenderingContext2D, phase: number): Uint8Array {
-    const eff = effectiveRef.current;
-    setActiveColors(eff.animate ? eff.animate(phase) : eff.colors);
-    void paint(ctx);
-    const imageData = ctx.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT);
-    return rgbaToRgb565(new Uint8Array(imageData.data.buffer));
-  }
-
   const fetchAndRender = async (forcePush = false) => {
     if (!widget) return;
     const off = offscreenRef.current;
@@ -123,22 +114,9 @@ export function useLcdWidget({ device, widget, active, theme, inverted }: UseLcd
     inFlightRef.current = true;
     try {
       setState({ status: 'uploading' });
-      if (eff.animate) {
-        const frames = eff.frames ?? 16;
-        const delay = eff.frameDelayMs ?? 60;
-        const pixels = new Uint8Array(frames * FRAME_BYTES);
-        const delays: number[] = [];
-        for (let i = 0; i < frames; i++) {
-          pixels.set(renderFrame(ctx, i / frames), i * FRAME_BYTES);
-          delays.push(delay);
-        }
-        copyPreview();
-        await device.uploadImage(pixels, delays);
-      } else {
-        const imageData = ctx.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT);
-        const rgb565 = rgbaToRgb565(new Uint8Array(imageData.data.buffer));
-        await device.uploadImage(rgb565);
-      }
+      const imageData = ctx.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT);
+      const rgb565 = rgbaToRgb565(new Uint8Array(imageData.data.buffer));
+      await device.uploadImage(rgb565);
       const now = Date.now();
       const next: WidgetState =
         widget.intervalSec > 0
